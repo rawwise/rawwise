@@ -1,0 +1,658 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xmlns="http://maven.apache.org/POM/4.0.0"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>io.github.rawwise</groupId>
+        <artifactId>rawwise</artifactId>
+        <version>0.0.1</version>
+    </parent>
+
+    <artifactId>rawwise-core</artifactId>
+
+    <dependencies>
+
+        <!-- logging -->
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+            <version>1.5.18</version>
+        </dependency>
+
+        <!-- spark -->
+        <dependency>
+            <groupId>org.apache.spark</groupId>
+            <artifactId>spark-core_${scala.binary.version}</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.spark</groupId>
+            <artifactId>spark-catalyst_${scala.binary.version}</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.spark</groupId>
+            <artifactId>spark-sql_${scala.binary.version}</artifactId>
+        </dependency>
+
+        <!-- jsqlparser -->
+        <dependency>
+            <groupId>com.github.jsqlparser</groupId>
+            <artifactId>jsqlparser</artifactId>
+            <version>4.9</version>
+        </dependency>
+
+        <!-- flink -->
+        <dependency>
+            <groupId>org.apache.flink</groupId>
+            <artifactId>flink-core</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.flink</groupId>
+            <artifactId>flink-table-common</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.flink</groupId>
+            <artifactId>flink-connector-base</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- parquet -->
+        <dependency>
+            <groupId>org.apache.parquet</groupId>
+            <artifactId>parquet-format-structures</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.parquet</groupId>
+            <artifactId>parquet-column</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.parquet</groupId>
+            <artifactId>parquet-hadoop</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.parquet</groupId>
+            <artifactId>parquet-avro</artifactId>
+        </dependency>
+
+        <!-- scala -->
+        <dependency>
+            <groupId>org.scala-lang</groupId>
+            <artifactId>scala-library</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- LMDB -->
+        <dependency>
+            <groupId>org.lmdbjava</groupId>
+            <artifactId>lmdbjava</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.github.jnr</groupId>
+            <artifactId>jnr-ffi</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.github.jnr</groupId>
+            <artifactId>jnr-constants</artifactId>
+        </dependency>
+
+        <!-- JVector -->
+        <dependency>
+            <groupId>io.github.jbellis</groupId>
+            <artifactId>jvector</artifactId>
+        </dependency>
+
+        <!-- jieba Chinese segmentation -->
+        <dependency>
+            <groupId>com.huaban</groupId>
+            <artifactId>jieba-analysis</artifactId>
+            <version>1.0.2</version>
+        </dependency>
+
+        <!-- Apache Ratis -->
+        <dependency>
+            <groupId>org.apache.ratis</groupId>
+            <artifactId>ratis-server</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.ratis</groupId>
+            <artifactId>ratis-grpc</artifactId>
+        </dependency>
+
+        <!-- RocksDB -->
+        <dependency>
+            <groupId>org.rocksdb</groupId>
+            <artifactId>rocksdbjni</artifactId>
+        </dependency>
+
+        <!-- gRPC -->
+        <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>grpc-netty-shaded</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>grpc-protobuf</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>grpc-stub</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>grpc-services</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>protoc-gen-grpc-java</artifactId>
+            <type>pom</type>
+            <scope>compile</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>jakarta.annotation</groupId>
+            <artifactId>jakarta.annotation-api</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>com.google.protobuf</groupId>
+            <artifactId>protobuf-java</artifactId>
+        </dependency>
+
+        <!-- utils -->
+        <dependency>
+            <groupId>com.beust</groupId>
+            <artifactId>jcommander</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-lang3</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.lz4</groupId>
+            <artifactId>lz4-java</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.lmax</groupId>
+            <artifactId>disruptor</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-pool2</artifactId>
+        </dependency>
+
+        <!-- Micrometer Metrics -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
+
+        <!-- Prometheus -->
+        <dependency>
+            <groupId>io.prometheus</groupId>
+            <artifactId>simpleclient_hotspot</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.prometheus</groupId>
+            <artifactId>simpleclient_httpserver</artifactId>
+        </dependency>
+
+        <!-- OSHI -->
+        <dependency>
+            <groupId>com.github.oshi</groupId>
+            <artifactId>oshi-core</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-jmx</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- JLine3 -->
+        <dependency>
+            <groupId>org.jline</groupId>
+            <artifactId>jline-reader</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.jline</groupId>
+            <artifactId>jline-terminal</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.jline</groupId>
+            <artifactId>jline-terminal-jni</artifactId>
+        </dependency>
+
+        <!-- Javalin HTTP Framework -->
+        <dependency>
+            <groupId>io.javalin</groupId>
+            <artifactId>javalin</artifactId>
+        </dependency>
+
+        <!-- MCP Java SDK -->
+        <dependency>
+            <groupId>io.modelcontextprotocol.sdk</groupId>
+            <artifactId>mcp-core</artifactId>
+            <version>0.15.0</version>
+        </dependency>
+        <dependency>
+            <groupId>io.modelcontextprotocol.sdk</groupId>
+            <artifactId>mcp-json-jackson2</artifactId>
+            <version>0.15.0</version>
+        </dependency>
+
+        <!-- Jackson JSON -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jdk8</artifactId>
+        </dependency>
+
+        <!-- Typesafe Config -->
+        <dependency>
+            <groupId>com.typesafe</groupId>
+            <artifactId>config</artifactId>
+        </dependency>
+
+        <!-- Test Dependencies -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.awaitility</groupId>
+            <artifactId>awaitility</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>net.jqwik</groupId>
+            <artifactId>jqwik</artifactId>
+            <version>1.8.2</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
+            <version>1.19.8</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>grpc-testing</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>grpc-inprocess</artifactId>
+            <version>${grpc.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.javalin</groupId>
+            <artifactId>javalin-testtools</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- JMH Benchmark -->
+        <dependency>
+            <groupId>org.openjdk.jmh</groupId>
+            <artifactId>jmh-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.openjdk.jmh</groupId>
+            <artifactId>jmh-generator-annprocess</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+
+            <plugin>
+                <groupId>net.alchim31.maven</groupId>
+                <artifactId>scala-maven-plugin</artifactId>
+                <version>4.8.1</version>
+                <executions>
+                    <execution>
+                        <id>scala-compile-first</id>
+                        <phase>none</phase>
+                        <goals>
+                            <goal>add-source</goal>
+                            <goal>compile</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>scala-test-compile</id>
+                        <phase>none</phase>
+                        <goals>
+                            <goal>testCompile</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <scalaVersion>${scala.version}</scalaVersion>
+                    <args>
+                        <arg>-deprecation</arg>
+                        <arg>-feature</arg>
+                        <arg>-unchecked</arg>
+                    </args>
+                    <recompileMode>incremental</recompileMode>
+                    <compileOrder>JavaThenScala</compileOrder>
+                </configuration>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.13.0</version>
+                <configuration>
+                    <release>21</release>
+                    <useIncrementalCompilation>false</useIncrementalCompilation>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>1.18.30</version>
+                        </path>
+                        <path>
+                            <groupId>org.openjdk.jmh</groupId>
+                            <artifactId>jmh-generator-annprocess</artifactId>
+                            <version>1.37</version>
+                        </path>
+                    </annotationProcessorPaths>
+                    <testExcludes>
+                        <testExclude>**/SparkIRAdaptorTest.java</testExclude>
+                        <testExclude>**/CompactionIntegrationTest.java</testExclude>
+                        <testExclude>**/CompactionManagerPlanTest.java</testExclude>
+                        <testExclude>**/CompactionManagerRecoveryTest.java</testExclude>
+                        <testExclude>**/SparkRecordConverterTest.java</testExclude>
+                        <testExclude>**/ShardTxnRpcTest.java</testExclude>
+                        <testExclude>**/DynamicMmapStoreWALIntegrationTest.java</testExclude>
+                        <testExclude>**/GroupCommitE2ETest.java</testExclude>
+                        <testExclude>io/github/rawwise/axiom/orchestrator/**</testExclude>
+                        <testExclude>io/github/rawwise/axiom/memory/MemoryE2ETest.java</testExclude>
+                        <testExclude>io/github/rawwise/axiom/memory/MemoryFacadeIntegrationTest.java</testExclude>
+                        <testExclude>io/github/rawwise/axiom/pipeline/MultiAgentConcurrencyTest.java</testExclude>
+                        <testExclude>io/github/rawwise/axiom/pipeline/cognition/**</testExclude>
+                        <testExclude>io/github/rawwise/axiom/pipeline/evaluation/**</testExclude>
+                        <testExclude>io/github/rawwise/axiom/pipeline/ingestion/**</testExclude>
+                        <testExclude>io/github/rawwise/axiom/pipeline/feedback/FeedbackPathE2ETest.java</testExclude>
+                        <testExclude>io/github/rawwise/axiom/pipeline/feedback/LoopConvergenceRealStorageE2ETest.java</testExclude>
+                        <testExclude>io/github/rawwise/backend/flink/RawWiseFlinkSinkTest.java</testExclude>
+                        <testExclude>io/github/rawwise/backend/read/**</testExclude>
+                        <testExclude>io/github/rawwise/backend/routing/**</testExclude>
+                        <testExclude>io/github/rawwise/backend/wal/**</testExclude>
+                        <testExclude>io/github/rawwise/e2e/FrontendBackendE2ETest.java</testExclude>
+                        <testExclude>**/RecoveryManagerTest.java</testExclude>
+                        <testExclude>**/MetastorePitfallsTest.java</testExclude>
+                        <testExclude>**/FastPathUpdateDeleteE2ETest.java</testExclude>
+                        <testExclude>**/JobConcurrentRaceE2ETest.java</testExclude>
+                        <testExclude>**/LoadScoreE2ETest.java</testExclude>
+                        <testExclude>**/MetastoreCatalogDDLTest.java</testExclude>
+                        <testExclude>**/ExecutionE2ETest.java</testExclude>
+                        <testExclude>**/SparkIRAdaptorWriteTest.java</testExclude>
+                        <testExclude>**/RouteDeciderTest.java</testExclude>
+                        <testExclude>**/RoutingTableTest.java</testExclude>
+                        <testExclude>**/AdminEndpointPermissionTest.java</testExclude>
+                        <testExclude>**/ProvenanceTest.java</testExclude>
+                        <testExclude>**/RbacE2ETest.java</testExclude>
+                        <testExclude>**/ConfigConstraintsTest.java</testExclude>
+                        <testExclude>**/TrustE2ETest.java</testExclude>
+                        <testExclude>**/MetastoreRegistryTest.java</testExclude>
+                        <testExclude>**/MetastoreBackupManagerTest.java</testExclude>
+                        <testExclude>**/KVTableApiE2ETest.java</testExclude>
+                        <testExclude>**/DynamicMmapStoreTest.java</testExclude>
+                        <testExclude>**/LmdbInstanceUsageRatioTest.java</testExclude>
+                        <testExclude>**/WriteBenchmarkTest.java</testExclude>
+                        <testExclude>**/AxiomServiceAuthTest.java</testExclude>
+                        <testExclude>**/SchemaValidatorTest.java</testExclude>
+                        <testExclude>**/IndexConstraintE2ETest.java</testExclude>
+                        <testExclude>**/RowGroupIndexReadE2ETest.java</testExclude>
+                        <testExclude>**/RowGroupIndexAndPKIndexE2ETest.java</testExclude>
+                        <testExclude>**/SchemaAwareParquetE2ETest.java</testExclude>
+                        <testExclude>**/SchemaAwareParquetReadTest.java</testExclude>
+                        <testExclude>**/ColumnGroupBodyCodecE2ETest.java</testExclude>
+                        <testExclude>**/FaultInjectionTest.java</testExclude>
+                        <testExclude>**/LmdbReadonlyStateTransitionTest.java</testExclude>
+                        <testExclude>**/LmdbSpaceMonitorAlertTest.java</testExclude>
+                        <testExclude>**/MemoryBudgetBaselineTest.java</testExclude>
+                        <testExclude>**/ReadWriteConcurrencyTest.java</testExclude>
+                        <testExclude>**/WritePathExecutorAsyncTest.java</testExclude>
+                        <testExclude>**/WriteReadIntegrationTest.java</testExclude>
+                        <testExclude>**/WriteThroughEndToEndTest.java</testExclude>
+                        <testExclude>**/PredicateConflictDetectorTest.java</testExclude>
+                        <testExclude>**/RangeReadIsolationTest.java</testExclude>
+                        <testExclude>**/PKIndexCoverageE2ETest.java</testExclude>
+                        <testExclude>**/ColumnGroupBenchmarkTest.java</testExclude>
+                        <testExclude>**/DefaultFlushCoordinatorSnapshotRegisteredTest.java</testExclude>
+                        <testExclude>**/SchemaAwareFlushWriteTest.java</testExclude>
+                        <testExclude>**/IngestionDataSinkTest.java</testExclude>
+                        <testExclude>**/LsmMergeReaderTest.java</testExclude>
+                        <testExclude>**/CleanPipelineTest.java</testExclude>
+                        <testExclude>**/AiNativeCleanSafetyPolicyTest.java</testExclude>
+                        <testExclude>io/github/rawwise/engine/storage/**/*Test.java</testExclude>
+                        <testExclude>io/github/rawwise/engine/clean/**</testExclude>
+                        <testExclude>io/github/rawwise/engine/compaction/**</testExclude>
+                                            <testExclude>**/CodecBenchmark.java</testExclude>
+                        <testExclude>**/DistributedVectorSearchTest.java</testExclude>
+                        <testExclude>**/VectorIngestRoutingTest.java</testExclude>
+                        <testExclude>**/WalPersistenceE2ETest.java</testExclude>
+                    </testExcludes>
+                </configuration>
+            </plugin>
+
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>0.8.12</version>
+                <executions>
+                    <execution>
+                        <id>prepare-agent</id>
+                        <phase>initialize</phase>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.2.5</version>
+                <configuration>
+                    <forkCount>1</forkCount>
+                    <reuseForks>false</reuseForks>
+                    <useModulePath>false</useModulePath>
+                    <shutdown>kill</shutdown>
+                    <forkedProcessExitTimeoutInSeconds>30</forkedProcessExitTimeoutInSeconds>
+                    <argLine>--add-opens=java.base/java.nio=ALL-UNNAMED --add-exports=java.base/sun.nio.ch=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/sun.security.action=ALL-UNNAMED --add-opens=java.base/java.io=ALL-UNNAMED</argLine>
+                    <excludes>
+                        <exclude>io/github/rawwise/axiom/orchestrator/**</exclude>
+                        <exclude>io/github/rawwise/axiom/memory/**</exclude>
+                        <exclude>io/github/rawwise/axiom/pipeline/MultiAgentConcurrencyTest.java</exclude>
+                        <exclude>io/github/rawwise/axiom/pipeline/cognition/**</exclude>
+                        <!-- See above note for derivation testExclude reasoning -->
+                        <exclude>io/github/rawwise/axiom/pipeline/derivation/**</exclude>
+                        <exclude>io/github/rawwise/axiom/pipeline/evaluation/**</exclude>
+                        <exclude>io/github/rawwise/axiom/pipeline/ingestion/**</exclude>
+                        <exclude>io/github/rawwise/axiom/pipeline/feedback/FeedbackPathE2ETest.java</exclude>
+                        <exclude>io/github/rawwise/axiom/pipeline/feedback/LoopConvergenceRealStorageE2ETest.java</exclude>
+                        <exclude>io/github/rawwise/backend/flink/RawWiseFlinkSinkTest.java</exclude>
+                        <exclude>io/github/rawwise/backend/read/**</exclude>
+                        <exclude>io/github/rawwise/backend/routing/**</exclude>
+                        <exclude>io/github/rawwise/backend/wal/**</exclude>
+                        <exclude>io/github/rawwise/e2e/FrontendBackendE2ETest.java</exclude>
+                    </excludes>
+                    <systemPropertyVariables>
+                        <spark.ui.enabled>false</spark.ui.enabled>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
+
+            <plugin>
+                <groupId>kr.motd.maven</groupId>
+                <artifactId>os-maven-plugin</artifactId>
+                <version>1.7.1</version>
+                <executions>
+                    <execution>
+                        <phase>initialize</phase>
+                        <goals>
+                            <goal>detect</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.xolstice.maven.plugins</groupId>
+                <artifactId>protobuf-maven-plugin</artifactId>
+                <version>0.6.1</version>
+                <configuration>
+                    <protoSourceRoot>${project.basedir}/src/main/resources/protobuf</protoSourceRoot>
+                    <clearOutputDirectory>false</clearOutputDirectory>
+                    <protocArtifact>
+                        com.google.protobuf:protoc:${protoc.version}:exe:${os.detected.classifier}
+                    </protocArtifact>
+                    <pluginId>grpc-java</pluginId>
+                    <pluginArtifact>
+                        io.grpc:protoc-gen-grpc-java:${grpc.version}:exe:${os.detected.classifier}
+                    </pluginArtifact>
+                    <outputDirectory>${project.build.directory}/generated-sources/protobuf/java</outputDirectory>
+                    <excludes>
+                        <exclude>google/protobuf/*.proto</exclude>
+                    </excludes>
+                </configuration>
+                <executions>
+                    <execution>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>compile</goal>
+                            <goal>compile-custom</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>build-helper-maven-plugin</artifactId>
+                <version>3.6.0</version>
+                <executions>
+                    <execution>
+                        <id>add-generated-sources</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>add-source</goal>
+                        </goals>
+                        <configuration>
+                            <sources>
+                                <source>${project.build.directory}/generated-sources/protobuf/java</source>
+                                <source>${project.build.directory}/generated-sources/protobuf/grpc-java</source>
+                            </sources>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.6.0</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <createDependencyReducedPom>false</createDependencyReducedPom>
+                            <filters>
+                                <filter>
+                                    <artifact>*:*</artifact>
+                                    <excludes>
+                                        <exclude>META-INF/*.SF</exclude>
+                                        <exclude>META-INF/*.DSA</exclude>
+                                        <exclude>META-INF/*.RSA</exclude>
+                                    </excludes>
+                                </filter>
+                            </filters>
+                            <transformers>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+                                <!-- 合并依赖的 Apache-2.0 LICENSE / NOTICE，满足分发时的署名与许可保留要求 -->
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ApacheLicenseResourceTransformer"/>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ApacheNoticeResourceTransformer"/>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                    <mainClass>io.github.rawwise.backend.server.Main</mainClass>
+                                </transformer>
+                            </transformers>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.4.1</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>test-jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

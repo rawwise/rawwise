@@ -1,0 +1,97 @@
+syntax = "proto3";
+
+package com.distdb.spark.txn;
+
+option java_package = "io.github.rawwise.txn";
+option java_outer_classname = "TxnCoordinatorProto";
+option java_multiple_files = true;
+
+// ================== OLTP Transaction Messages ==================
+
+message BeginTxnRequest {
+    repeated string table_ids = 1;
+    string isolation_level = 2;
+}
+
+message BeginTxnResponse {
+    int64 txn_id = 1;
+    map<string, string> node_assignments = 2;
+}
+
+message CommitTxnRequest {
+    int64 txn_id = 1;
+}
+
+message CommitTxnResponse {
+    bool success = 1;
+    int64 commit_ts = 2;
+    string conflict_reason = 3;
+}
+
+message AbortTxnRequest {
+    int64 txn_id = 1;
+}
+
+message AbortTxnResponse {
+    bool success = 1;
+    string reason = 2;
+}
+
+// ================== Ingestion Batch Messages ==================
+
+message BeginBatchRequest {
+    string batch_id = 1;
+    string table_id = 2;
+    int32 expected_shard_count = 3;
+    int64 epoch = 4;
+}
+
+message BeginBatchResponse {
+    string batch_id = 1;
+    map<int32, string> shard_assignments = 2;
+}
+
+message CommitBatchRequest {
+    string batch_id = 1;
+    string table_id = 2;
+    string idempotency_key = 3;
+    int32 expected_shard_count = 4;
+}
+
+message CommitBatchResponse {
+    bool success = 1;
+    int64 commit_ts = 2;
+    string conflict_reason = 3;
+}
+
+message AbortBatchRequest {
+    string idempotency_key = 1;
+}
+
+message AbortBatchResponse {
+    bool success = 1;
+    string reason = 2;
+}
+
+message QueryBatchStatusRequest {
+    string idempotency_key = 1;
+}
+
+message QueryBatchStatusResponse {
+    string state = 1;
+    int64 commit_ts = 2;
+    string description = 3;
+}
+
+// ================== Service Definition ==================
+
+service TxnCoordinatorService {
+    rpc BeginTxn(BeginTxnRequest) returns (BeginTxnResponse);
+    rpc CommitTxn(CommitTxnRequest) returns (CommitTxnResponse);
+    rpc AbortTxn(AbortTxnRequest) returns (AbortTxnResponse);
+
+    rpc BeginBatch(BeginBatchRequest) returns (BeginBatchResponse);
+    rpc CommitBatch(CommitBatchRequest) returns (CommitBatchResponse);
+    rpc AbortBatch(AbortBatchRequest) returns (AbortBatchResponse);
+    rpc QueryBatchStatus(QueryBatchStatusRequest) returns (QueryBatchStatusResponse);
+}

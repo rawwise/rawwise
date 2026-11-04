@@ -1,0 +1,1745 @@
+syntax = "proto3";
+
+package com.distdb.spark.server;
+
+option java_package = "io.github.rawwise.server";
+option java_outer_classname = "QueryServerProto";
+option java_multiple_files = true;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
+import "frontend_ir.proto";
+import "rawwise_meta.proto";
+
+// ================== 基础消息类型 ==================
+
+/**
+ * 通用响应状态
+ */
+message Status {
+  enum Code {
+    OK = 0;
+    CANCELLED = 1;
+    UNKNOWN = 2;
+    INVALID_ARGUMENT = 3;
+    DEADLINE_EXCEEDED = 4;
+    NOT_FOUND = 5;
+    ALREADY_EXISTS = 6;
+    PERMISSION_DENIED = 7;
+    RESOURCE_EXHAUSTED = 8;
+    FAILED_PRECONDITION = 9;
+    ABORTED = 10;
+    OUT_OF_RANGE = 11;
+    UNIMPLEMENTED = 12;
+    INTERNAL = 13;
+    UNAVAILABLE = 14;
+    DATA_LOSS = 15;
+    UNAUTHENTICATED = 16;
+  }
+
+  Code code = 1;
+  string message = 2;
+  map<string, string> details = 3;
+}
+
+/**
+ * Job状态枚举
+ */
+enum JobState {
+  PENDING = 0;
+  SUBMITTED = 1;
+  RUNNING = 2;
+  SUCCEEDED = 3;
+  FAILED = 4;
+  CANCELLING = 5;
+  CANCELLED = 6;
+  TIMED_OUT = 7;
+  SKIPPED = 8;
+}
+
+/**
+ * 查询类型
+ */
+enum QueryType {
+  SQL = 0;
+  DDL = 1;
+  DML = 2;
+  ANALYZE = 3;
+  EXPLAIN = 4;
+  SHOW = 5;
+  DESCRIBE = 6;
+}
+
+// ================== Query Service ==================
+
+/**
+ * 查询请求
+ */
+message QueryRequest {
+  string id = 1;                      // 请求ID，客户端生成
+  string sql = 2;                     // SQL语句
+  QueryType type = 3;                 // 查询类型
+  map<string, string> parameters = 4; // 查询参数
+
+  // 执行选项
+  message ExecutionOptions {
+    int64 timeout_seconds = 1;        // 超时时间(秒)
+    int64 max_rows = 2;               // 最大返回行数
+    bool collect_to_driver = 3;       // 是否收集到Driver
+    string output_format = 4;         // 输出格式：json, csv, parquet等
+    string output_path = 5;           // 输出路径
+    string result_table = 6;          // 结果表名
+    int32 priority = 7;               // 优先级 1-10
+    bool async = 8;                   // 是否异步执行
+    bool cache_result = 9;            // 是否缓存结果
+    int32 max_retries = 10;           // 最大重试次数
+    bool dry_run = 11;                // 干跑模式
+  }
+
+  ExecutionOptions options = 5;
+
+  // 会话上下文
+  message SessionContext {
+    string session_id = 1;
+    string user_id = 2;
+    string database = 3;
+    map<string, string> configs = 4;  // Spark配置
+    google.protobuf.Timestamp create_time = 5;
+  }
+
+  SessionContext session = 6;
+
+  // 分区信息（用于数据本地性）
+  message PartitionInfo {
+    string table_name = 1;
+    repeated string partition_keys = 2;
+    map<string, string> partition_values = 3;
+  }
+
+  repeated PartitionInfo partitions = 7;
+
+  // Transaction context (P9d: Frontend → Backend txnId passthrough)
+  int64 txn_id = 8;
+  string frontend_session_id = 9;
+}
+
+/**
+ * 查询响应（流式）
+ */
+message QueryResponse {
+  string request_id = 1;
+  string job_id = 2;
+
+  // 进度信息
+  message Progress {
+    double completed_fraction = 1;    // 完成比例 0-1
+    int64 rows_processed = 2;         // 已处理行数
+    int64 bytes_processed = 3;        // 已处理字节数
+    int32 stage_id = 4;               // 当前Stage ID
+    int32 task_id = 5;                // 当前Task ID
+    string stage_name = 6;            // Stage名称
+  }
+
+  oneof content {
+    JobState state = 3;               // Job状态更新
+    Progress progress = 4;            // 进度更新
+    ResultChunk result_chunk = 5;     // 结果数据块
+    string message = 6;               // 消息
+    Status error = 7;                 // 错误信息
+  }
+}
+
+/**
+ * 结果数据块
+ */
+message ResultChunk {
+  int32 chunk_id = 1;
+  bool is_first = 2;
+  bool is_last = 3;
+  int32 total_chunks = 4;
+
+  message Metadata {
+    repeated ColumnSchema columns = 1;
+    int64 total_rows = 2;
+    int64 total_bytes = 3;
+    google.protobuf.Timestamp start_time = 4;
+    google.protobuf.Timestamp end_time = 5;
+  }
+
+  Metadata metadata = 5;
+
+  // 数据格式
+  enum DataFormat {
+    JSON = 0;
+    ARROW = 1;
+    PROTOBUF = 2;
+    CSV = 3;
+    PARQUET = 4;
+    RAW_BYTES = 5;
+  }
+
+  DataFormat format = 6;
+  bytes data = 7;                     // 序列化的数据
+
+  // 列统计信息
+  repeated ColumnStats column_stats = 8;
+}
+
+/**
+ * 列模式
+ */
+message ColumnSchema {
+  string name = 1;
+  string type = 2;
+  bool nullable = 3;
+  map<string, string> metadata = 4;
+}
+
+/**
+ * 列统计信息
+ */
+message ColumnStats {
+  string column_name = 1;
+  int64 null_count = 2;
+  double min_value = 3;               // 数值类型
+  double max_value = 4;               // 数值类型
+  double avg_value = 5;               // 数值类型
+  string min_string = 6;              // 字符串类型
+  string max_string = 7;              // 字符串类型
+  int64 distinct_count = 8;           // 去重计数
+  bytes histogram = 9;                // 直方图数据
+}
+
+// ================== Job Management Service ==================
+
+/**
+ * Job信息
+ */
+message JobInfo {
+  string job_id = 1;
+  string name = 2;
+  string description = 3;
+  JobState state = 4;
+
+  // 时间戳
+  google.protobuf.Timestamp submit_time = 5;
+  google.protobuf.Timestamp start_time = 6;
+  google.protobuf.Timestamp end_time = 7;
+  google.protobuf.Duration duration = 8;
+
+  // 进度
+  double progress = 9;
+  int64 rows_processed = 10;
+  int64 bytes_processed = 11;
+
+  // 配置
+  string sql = 12;
+  map<string, string> configs = 13;
+
+  // 资源使用
+  message ResourceUsage {
+    int64 executor_memory_mb = 1;
+    int32 executor_cores = 2;
+    int64 driver_memory_mb = 3;
+    int64 memory_bytes_spilled = 4;
+    int64 disk_bytes_spilled = 5;
+  }
+
+  ResourceUsage resources = 14;
+
+  // 错误信息
+  string error_message = 15;
+  string error_stack_trace = 16;
+
+  // 执行计划
+  string logical_plan = 17;
+  string physical_plan = 18;
+
+  // 执行器信息
+  repeated string executor_ids = 19;
+}
+
+/**
+ * Job过滤条件
+ */
+message JobFilter {
+  repeated string job_ids = 1;
+  repeated JobState states = 2;
+  google.protobuf.Timestamp start_time_from = 3;
+  google.protobuf.Timestamp start_time_to = 4;
+  string user_id = 5;
+  string session_id = 6;
+  string sql_pattern = 7;
+  int32 limit = 8;
+  int32 offset = 9;
+  string sort_by = 10;                // submit_time, start_time, duration
+  bool sort_desc = 11;
+}
+
+/**
+ * Job列表响应
+ */
+message JobList {
+  repeated JobInfo jobs = 1;
+  int32 total_count = 2;
+  int32 filtered_count = 3;
+  google.protobuf.Timestamp query_time = 4;
+}
+
+/**
+ * Job Metrics
+ */
+message JobMetrics {
+  string job_id = 1;
+
+  // 时间指标
+  google.protobuf.Duration total_time = 2;
+  google.protobuf.Duration scheduling_delay = 3;
+  google.protobuf.Duration executor_run_time = 4;
+  google.protobuf.Duration result_serialization_time = 5;
+  google.protobuf.Duration gc_time = 6;
+
+  // 任务指标
+  int32 total_tasks = 7;
+  int32 completed_tasks = 8;
+  int32 failed_tasks = 9;
+  int32 killed_tasks = 10;
+
+  // 数据指标
+  int64 input_bytes = 11;
+  int64 output_bytes = 12;
+  int64 shuffle_read_bytes = 13;
+  int64 shuffle_write_bytes = 14;
+  int64 memory_bytes_spilled = 15;
+  int64 disk_bytes_spilled = 16;
+
+  // 执行器指标
+  repeated ExecutorMetrics executors = 17;
+
+  // Stage指标
+  repeated StageMetrics stages = 18;
+}
+
+/**
+ * Executor Metrics
+ */
+message ExecutorMetrics {
+  string id = 1;
+  string host = 2;
+  int32 port = 3;
+
+  // 资源使用
+  int64 total_memory_mb = 4;
+  int64 used_memory_mb = 5;
+  int32 total_cores = 6;
+  int32 used_cores = 7;
+
+  // 任务统计
+  int32 total_tasks = 8;
+  int32 completed_tasks = 9;
+  int32 failed_tasks = 10;
+  int64 total_duration_ms = 11;
+
+  // GC统计
+  int64 gc_count = 12;
+  int64 gc_time_ms = 13;
+
+  // 网络统计
+  int64 bytes_received = 14;
+  int64 bytes_sent = 15;
+}
+
+/**
+ * Stage Metrics
+ */
+message StageMetrics {
+  int32 stage_id = 1;
+  string name = 2;
+  int32 num_tasks = 3;
+  int32 completed_tasks = 4;
+  int32 failed_tasks = 5;
+  int64 input_bytes = 6;
+  int64 output_bytes = 7;
+  int64 shuffle_read_bytes = 8;
+  int64 shuffle_write_bytes = 9;
+  google.protobuf.Duration duration = 10;
+}
+
+// ================== Session Management Service ==================
+
+/**
+ * 会话信息
+ */
+message SessionInfo {
+  string session_id = 1;
+  string user_id = 2;
+  string application_id = 3;
+
+  // 时间信息
+  google.protobuf.Timestamp create_time = 4;
+  google.protobuf.Timestamp last_access_time = 5;
+  google.protobuf.Duration idle_time = 6;
+
+  // 配置
+  string default_database = 7;
+  map<string, string> configs = 8;
+
+  // 统计信息
+  int64 total_queries = 9;
+  int64 successful_queries = 10;
+  int64 failed_queries = 11;
+  google.protobuf.Duration total_query_time = 12;
+
+  // 资源使用
+  int64 memory_used_mb = 13;
+  repeated string active_jobs = 14;
+  repeated string cached_tables = 15;
+}
+
+/**
+ * 会话配置
+ */
+message SessionConfig {
+  string session_id = 1;
+  map<string, string> spark_configs = 2;
+  string database = 3;
+  string warehouse_dir = 4;
+  bool enable_hive_support = 5;
+  bool enable_adaptive_execution = 6;
+  int32 shuffle_partitions = 7;
+  int64 auto_broadcast_threshold = 8;
+}
+
+/**
+ * 会话创建请求
+ */
+message CreateSessionRequest {
+  string user_id = 1;
+  string application_name = 2;
+  SessionConfig config = 3;
+  map<string, string> properties = 4;
+}
+
+/**
+ * 会话创建响应
+ */
+message CreateSessionResponse {
+  string session_id = 1;
+  Status status = 2;
+  SessionInfo session_info = 3;
+}
+
+// ================== Table Management Service ==================
+
+/**
+ * 表信息
+ */
+message TableInfo {
+  string database = 1;
+  string table_name = 2;
+  string table_type = 3;  // MANAGED, EXTERNAL, VIEW
+
+  // 存储信息
+  message StorageInfo {
+    string format = 1;    // parquet, orc, json, csv
+    string location = 2;
+    bool compressed = 3;
+    map<string, string> properties = 4;
+  }
+
+  StorageInfo storage = 4;
+
+  // Schema信息
+  repeated ColumnSchema columns = 5;
+  repeated ColumnSchema partition_columns = 6;
+
+  // 统计信息
+  int64 num_rows = 7;
+  int64 total_size_bytes = 8;
+  map<string, bytes> column_statistics = 9;
+
+  // 创建信息
+  string created_by = 10;
+  google.protobuf.Timestamp create_time = 11;
+  google.protobuf.Timestamp last_access_time = 12;
+
+  // 属性
+  map<string, string> properties = 13;
+}
+
+/**
+ * 创建表请求
+ */
+message CreateTableRequest {
+  string database = 1;
+  string table_name = 2;
+  repeated ColumnSchema columns = 3;
+  repeated ColumnSchema partition_columns = 4;
+
+  // 存储格式
+  string format = 5;
+  string location = 6;
+  map<string, string> tbl_properties = 7;
+
+  // 选项
+  bool if_not_exists = 8;
+  bool is_external = 9;
+  string comment = 10;
+
+  // 数据来源
+  oneof source {
+    string select_sql = 11;          // CTAS
+    string data_path = 12;           // 从数据路径创建
+    TableInfo like_table = 13;       // LIKE table
+  }
+}
+
+/**
+ * 分区信息
+ */
+message PartitionInfo {
+  string database = 1;
+  string table_name = 2;
+  map<string, string> values = 3;
+  string location = 4;
+  string format = 5;
+  int64 num_rows = 6;
+  int64 total_size_bytes = 7;
+  google.protobuf.Timestamp create_time = 8;
+  google.protobuf.Timestamp last_access_time = 9;
+  map<string, bytes> column_statistics = 10;
+}
+
+/**
+ * 分区列表
+ */
+message PartitionList {
+  repeated PartitionInfo partitions = 1;
+  int32 total_count = 2;
+  bool has_more = 3;
+  string next_token = 4;
+}
+
+// ================== Cluster Management Service ==================
+
+/**
+ * 集群状态
+ */
+message ClusterStatus {
+  // Driver状态
+  message DriverStatus {
+    string id = 1;
+    string host = 2;
+    int32 port = 3;
+    string state = 4;
+    google.protobuf.Timestamp start_time = 5;
+    int64 memory_used_mb = 6;
+    int64 memory_total_mb = 7;
+    int32 cores_used = 8;
+    int32 cores_total = 9;
+  }
+
+  DriverStatus driver = 1;
+
+  // Executor状态
+  repeated ExecutorStatus executors = 2;
+
+  // 应用状态
+  string application_id = 3;
+  string application_state = 4;
+  int32 num_running_jobs = 5;
+  int32 num_pending_jobs = 6;
+  int32 num_failed_jobs = 7;
+
+  // 资源状态
+  int64 total_memory_mb = 8;
+  int64 used_memory_mb = 9;
+  int32 total_cores = 10;
+  int32 used_cores = 11;
+
+  // 调度器状态
+  string scheduler_mode = 12;
+  repeated PoolInfo pools = 13;
+}
+
+/**
+ * Executor状态
+ */
+message ExecutorStatus {
+  string id = 1;
+  string host = 2;
+  int32 port = 3;
+  string state = 4;  // ALIVE, DEAD, UNKNOWN
+
+  // 资源使用
+  int64 memory_used_mb = 5;
+  int64 memory_total_mb = 6;
+  int32 cores_used = 7;
+  int32 cores_total = 8;
+
+  // 任务统计
+  int32 active_tasks = 9;
+  int32 completed_tasks = 10;
+  int32 failed_tasks = 11;
+
+  // 时间信息
+  google.protobuf.Timestamp register_time = 12;
+  google.protobuf.Timestamp last_heartbeat = 13;
+
+  // 网络信息
+  int64 bytes_received = 14;
+  int64 bytes_sent = 15;
+}
+
+/**
+ * 调度池信息
+ */
+message PoolInfo {
+  string name = 1;
+  int32 min_share = 2;
+  int32 weight = 3;
+  int32 running_tasks = 4;
+  int32 pending_tasks = 5;
+  string scheduling_mode = 6;
+}
+
+/**
+ * 应用Metrics
+ */
+message ApplicationMetrics {
+  // JVM Metrics
+  message JVMMetrics {
+    int64 heap_used_mb = 1;
+    int64 heap_max_mb = 2;
+    int64 non_heap_used_mb = 3;
+    int64 gc_count = 4;
+    int64 gc_time_ms = 5;
+    int32 threads = 6;
+    int32 daemon_threads = 7;
+  }
+
+  JVMMetrics driver_jvm = 1;
+  repeated JVMMetrics executor_jvms = 2;
+
+  // Spark Metrics
+  message SparkInternalMetrics {
+    int64 executor_run_time = 1;
+    int64 executor_cpu_time = 2;
+    int64 result_serialization_time = 3;
+    int64 jvm_gc_time = 4;
+    int64 result_size = 5;
+    int64 disk_bytes_spilled = 6;
+    int64 memory_bytes_spilled = 7;
+    int64 peak_execution_memory = 8;
+    int64 records_read = 9;
+    int64 bytes_read = 10;
+    int64 records_written = 11;
+    int64 bytes_written = 12;
+    int64 shuffle_bytes_read = 13;
+    int64 shuffle_bytes_written = 14;
+    int64 shuffle_records_read = 15;
+    int64 shuffle_records_written = 16;
+  }
+
+  SparkInternalMetrics metrics = 3;
+
+  // 时间序列数据
+  repeated MetricDataPoint time_series = 4;
+}
+
+/**
+ * Metrics数据点
+ */
+message MetricDataPoint {
+  google.protobuf.Timestamp timestamp = 1;
+  map<string, double> values = 2;
+  map<string, string> labels = 3;
+}
+
+message EnvironmentConf {
+  map<string, string> conf = 1;
+}
+
+// ================== Service Definitions ==================
+
+/**
+ * 查询服务
+ * 处理SQL查询和DML操作
+ */
+service QueryService {
+  // 执行查询（流式响应）
+  rpc ExecuteQuery(QueryRequest) returns (stream QueryResponse);
+
+  // 提交查询（异步）
+  rpc SubmitQuery(QueryRequest) returns (QueryResponse);
+
+  // 获取查询状态
+  rpc GetQueryStatus(QueryRequest) returns (QueryResponse);
+
+  // 取消查询
+  rpc CancelQuery(QueryRequest) returns (QueryResponse);
+
+  // 获取查询结果（分页）
+  rpc GetQueryResult(QueryRequest) returns (stream ResultChunk);
+
+  // 解释执行计划
+  rpc ExplainQuery(QueryRequest) returns (QueryResponse);
+
+  // 分析表/列统计信息
+  rpc AnalyzeTable(QueryRequest) returns (QueryResponse);
+
+  // 测试查询语法
+  rpc ValidateQuery(QueryRequest) returns (QueryResponse);
+
+  // Submit IR for native execution (TD7: bypasses SQL parsing)
+  rpc SubmitIR (rawwise.frontend.ir.SubmitIRRequest) returns (rawwise.frontend.ir.SubmitIRResponse);
+
+  // Execute IR synchronously — single RPC, no polling
+  rpc ExecuteIR (rawwise.frontend.ir.ExecuteIRRequest) returns (rawwise.frontend.ir.ExecuteIRResponse);
+}
+
+/**
+ * Job管理服务
+ * 管理Spark Job的生命周期
+ */
+service JobManagementService {
+  // 获取Job列表
+  rpc ListJobs(JobFilter) returns (JobList);
+
+  // 获取Job详细信息
+  rpc GetJobInfo(JobInfo) returns (JobInfo);
+
+  // 获取Job Metrics
+  rpc GetJobMetrics(JobInfo) returns (JobMetrics);
+
+  // 杀死Job
+  rpc KillJob(JobInfo) returns (Status);
+
+  // 重试失败的Job
+  rpc RetryJob(JobInfo) returns (Status);
+
+  // 清理完成的Job
+  rpc CleanupJobs(JobFilter) returns (Status);
+
+  // 监控Job进度（流式）
+  rpc MonitorJob(JobInfo) returns (stream JobInfo);
+
+  // 获取Job日志
+  rpc GetJobLogs(JobInfo) returns (stream LogMessage);
+}
+
+/**
+ * 会话管理服务
+ * 管理用户会话
+ */
+service SessionManagementService {
+  // 创建会话
+  rpc CreateSession(CreateSessionRequest) returns (CreateSessionResponse);
+
+  // 关闭会话
+  rpc CloseSession(SessionInfo) returns (Status);
+
+  // 获取会话信息
+  rpc GetSessionInfo(SessionInfo) returns (SessionInfo);
+
+  // 更新会话配置
+  rpc UpdateSessionConfig(SessionConfig) returns (Status);
+
+  // 列出所有会话
+  rpc ListSessions(google.protobuf.Empty) returns (stream SessionInfo);
+
+  // 续期会话
+  rpc RenewSession(SessionInfo) returns (Status);
+
+  // 清理空闲会话
+  rpc CleanupIdleSessions(google.protobuf.Duration) returns (Status);
+}
+
+/**
+ * 表管理服务
+ * 管理数据库和表
+ */
+service TableManagementService {
+  // 创建表
+  rpc CreateTable(CreateTableRequest) returns (Status);
+
+  // 删除表
+  rpc DropTable(TableInfo) returns (Status);
+
+  // 获取表信息
+  rpc GetTableInfo(TableInfo) returns (TableInfo);
+
+  // 列出所有表
+  rpc ListTables(TableInfo) returns (stream TableInfo);
+
+  // 描述表
+  rpc DescribeTable(TableInfo) returns (TableInfo);
+
+  // 修改表
+  rpc AlterTable(TableInfo) returns (Status);
+
+  // 刷新表元数据
+  rpc RefreshTable(TableInfo) returns (Status);
+
+  // 获取分区信息
+  rpc GetPartitions(TableInfo) returns (PartitionList);
+
+  // 添加分区
+  rpc AddPartition(PartitionInfo) returns (Status);
+
+  // 删除分区
+  rpc DropPartition(PartitionInfo) returns (Status);
+
+  // 修复分区
+  rpc RepairPartition(PartitionInfo) returns (Status);
+}
+
+/**
+ * 集群管理服务
+ * Manage Spark cluster status
+ */
+service ClusterManagementService {
+  // Get cluster status
+  rpc GetClusterStatus(google.protobuf.Empty) returns (ClusterStatus);
+
+  // Get executor info
+  rpc GetExecutorInfo(google.protobuf.Empty) returns (stream ExecutorStatus);
+
+  // Get application metrics
+  rpc GetApplicationMetrics(google.protobuf.Empty) returns (ApplicationMetrics);
+
+  // Get driver logs
+  rpc GetDriverLogs(google.protobuf.Empty) returns (stream LogMessage);
+
+  // Get environment config
+  rpc GetEnvironmentConfig(google.protobuf.Empty) returns (EnvironmentConf);
+
+  // Dynamically adjust resources
+  rpc AdjustResources(ResourceRequest) returns (Status);
+
+  // Reschedule executor
+  rpc RestartExecutor(ExecutorStatus) returns (Status);
+
+  // Graceful shutdown
+  rpc GracefulShutdown(google.protobuf.Duration) returns (Status);
+
+  // Register executor node
+  rpc RegisterExecutor(RegisterExecutorRequest) returns (RegisterExecutorResponse);
+
+  // Heartbeat from executor
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+
+  // Report centroid data
+  rpc ReportCentroid(CentroidReportRequest) returns (CentroidReportResponse);
+}
+
+// ================== Executor Registration Messages ==================
+
+message RegisterExecutorRequest {
+  string executor_id = 1;
+  string node_id = 2;
+  int32 shard_id = 3;
+  int32 slot_index = 4;
+  string host = 5;
+  int32 port = 6;
+}
+
+message RegisterExecutorResponse {
+  Status status = 1;
+  int64 epoch = 2;
+}
+
+message HeartbeatRequest {
+  string executor_id = 1;
+  string node_id = 2;
+  int32 shard_id = 3;
+  int64 timestamp_ms = 4;
+}
+
+message HeartbeatResponse {
+  Status status = 1;
+  int64 server_timestamp_ms = 2;
+  int64 next_heartbeat_interval_ms = 3;
+}
+
+message CentroidReportRequest {
+  int32 shard_id = 1;
+  repeated float centroid = 2;
+  int64 vector_count = 3;
+  int64 timestamp = 4;
+  string executor_id = 5;
+}
+
+message CentroidReportResponse {
+  bool accepted = 1;
+  string error = 2;
+}
+
+/**
+ * Monitoring alert service
+ * 监控系统状态和发送告警
+ */
+service MonitorService {
+  // 订阅监控事件
+  rpc SubscribeMetrics(MetricSubscription) returns (stream MetricDataPoint);
+
+  // 获取健康状态
+  rpc GetHealthStatus(google.protobuf.Empty) returns (HealthStatus);
+
+  // 设置告警规则
+  rpc SetAlertRule(AlertRule) returns (Status);
+
+//  // 获取告警列表
+//  rpc GetAlerts(AlertFilter) returns (stream Alert);
+//
+//  // 清除告警
+//  rpc ClearAlerts(AlertFilter) returns (Status);
+
+  // 获取性能报告
+  rpc GetPerformanceReport(ReportRequest) returns (PerformanceReport);
+
+  // 获取慢查询报告
+  rpc GetSlowQueryReport(ReportRequest) returns (SlowQueryReport);
+}
+
+///**
+// * 数据管理服务
+// * 管理数据导入导出
+// */
+//service DataManagementService {
+//  // 导入数据
+//  rpc ImportData(ImportRequest) returns (stream ImportProgress);
+//
+//  // 导出数据
+//  rpc ExportData(ExportRequest) returns (stream ExportProgress);
+//
+//  // 备份数据
+//  rpc BackupData(BackupRequest) returns (stream BackupProgress);
+//
+//  // 恢复数据
+//  rpc RestoreData(RestoreRequest) returns (stream RestoreProgress);
+//
+//  // 校验数据一致性
+//  rpc VerifyData(VerifyRequest) returns (stream VerifyProgress);
+//}
+
+// ================== 补充消息类型 ==================
+
+/**
+ * 资源请求
+ */
+message ResourceRequest {
+  enum ResourceType {
+    EXECUTOR_MEMORY = 0;
+    EXECUTOR_CORES = 1;
+    DRIVER_MEMORY = 2;
+    EXECUTOR_INSTANCES = 3;
+  }
+
+  ResourceType type = 1;
+  int64 amount = 2;
+  string unit = 3;  // MB, GB, cores
+  google.protobuf.Duration duration = 4;  // 持续时间
+  string reason = 5;
+}
+
+/**
+ * 日志消息
+ */
+message LogMessage {
+  enum LogLevel {
+    TRACE = 0;
+    DEBUG = 1;
+    INFO = 2;
+    WARN = 3;
+    ERROR = 4;
+    FATAL = 5;
+  }
+
+  LogLevel level = 1;
+  string logger = 2;
+  string message = 3;
+  google.protobuf.Timestamp timestamp = 4;
+  string thread = 5;
+  string stack_trace = 6;
+  map<string, string> mdc = 7;  // Mapped Diagnostic Context
+}
+
+/**
+ * 健康状态
+ */
+message HealthStatus {
+  enum Status {
+    HEALTHY = 0;
+    DEGRADED = 1;
+    UNHEALTHY = 2;
+    UNKNOWN = 3;
+  }
+
+  Status status = 1;
+  google.protobuf.Timestamp check_time = 2;
+  map<string, ComponentHealth> components = 3;
+  repeated string issues = 4;
+}
+
+/**
+ * 组件健康状态
+ */
+message ComponentHealth {
+  enum Status {
+    UP = 0;
+    DOWN = 1;
+    UNKNOWN = 2;
+  }
+
+  Status status = 1;
+  string message = 2;
+  google.protobuf.Timestamp last_check = 3;
+  google.protobuf.Duration response_time = 4;
+}
+
+/**
+ * Metric订阅
+ */
+message MetricSubscription {
+  repeated string metric_names = 1;
+  google.protobuf.Duration sample_interval = 2;
+  google.protobuf.Duration duration = 3;
+  map<string, string> filters = 4;
+}
+
+/**
+ * 告警规则
+ */
+message AlertRule {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+
+  message Condition {
+    string metric = 1;
+    string operator = 2;  // >, <, >=, <=, ==, !=
+    double threshold = 3;
+    google.protobuf.Duration duration = 4;
+  }
+
+  Condition condition = 4;
+
+  // 告警动作
+  message Action {
+    enum ActionType {
+      NOTIFY = 0;
+      SCALE = 1;
+      RESTART = 2;
+      STOP = 3;
+    }
+
+    ActionType type = 1;
+    map<string, string> parameters = 2;
+  }
+
+  repeated Action actions = 5;
+
+  // 抑制规则
+  message Suppression {
+    google.protobuf.Duration duration = 1;
+    int32 max_alerts = 2;
+  }
+
+  Suppression suppression = 6;
+
+  bool enabled = 7;
+  google.protobuf.Timestamp create_time = 8;
+}
+
+/**
+ * 告警
+ */
+message Alert {
+  string id = 1;
+  string rule_id = 2;
+  AlertRule rule = 3;
+
+  enum Severity {
+    INFO = 0;
+    WARNING = 1;
+    ERROR = 2;
+    CRITICAL = 3;
+  }
+
+  Severity severity = 4;
+  string message = 5;
+  map<string, string> labels = 6;
+  map<string, string> annotations = 7;
+
+  google.protobuf.Timestamp start_time = 8;
+  google.protobuf.Timestamp end_time = 9;
+  AlertState state = 10;
+
+  repeated string affected_components = 11;
+}
+
+/**
+ * 告警状态
+ */
+enum AlertState {
+  FIRING = 0;
+  RESOLVED = 1;
+  SUPPRESSED = 2;
+}
+
+/**
+ * 告警过滤器
+ */
+//message AlertFilter {
+//  repeated string alert_ids = 1;
+//  repeated AlertState states = 2;
+//  repeated AlertRule.Severity severities = 3;
+//  google.protobuf.Timestamp start_time_from = 4;
+//  google.protobuf.Timestamp start_time_to = 5;
+//  repeated string rule_ids = 6;
+//  bool active_only = 7;
+//}
+
+/**
+ * 报告请求
+ */
+message ReportRequest {
+  google.protobuf.Timestamp start_time = 1;
+  google.protobuf.Timestamp end_time = 2;
+  repeated string metrics = 3;
+  string format = 4;  // json, csv, html, pdf
+  int32 limit = 5;
+}
+
+/**
+ * 性能报告
+ */
+message PerformanceReport {
+  google.protobuf.Timestamp generation_time = 1;
+  google.protobuf.Timestamp period_start = 2;
+  google.protobuf.Timestamp period_end = 3;
+
+  // 查询性能
+  message QueryPerformance {
+    int64 total_queries = 1;
+    int64 successful_queries = 2;
+    int64 failed_queries = 3;
+    google.protobuf.Duration avg_query_time = 4;
+    google.protobuf.Duration p95_query_time = 5;
+    google.protobuf.Duration p99_query_time = 6;
+    repeated SlowQueryInfo slow_queries = 7;
+  }
+
+  QueryPerformance query_performance = 4;
+
+  // 资源使用
+  message ResourceUsage {
+    double avg_cpu_utilization = 1;
+    double avg_memory_utilization = 2;
+    double avg_disk_io = 3;
+    double avg_network_io = 4;
+    repeated ResourcePeak peaks = 5;
+  }
+
+  ResourceUsage resource_usage = 5;
+
+  // 系统可用性
+  message SystemAvailability {
+    double uptime_percentage = 1;
+    int32 total_downtime_minutes = 2;
+    repeated SystemOutage outages = 3;
+    double sla_compliance = 4;
+  }
+
+  SystemAvailability availability = 6;
+
+  bytes report_data = 7;  // 序列化的报告数据
+}
+
+/**
+ * 慢查询信息
+ */
+message SlowQueryInfo {
+  string query_id = 1;
+  string sql = 2;
+  google.protobuf.Duration duration = 3;
+  int64 rows_processed = 4;
+  google.protobuf.Timestamp execution_time = 5;
+  string user_id = 6;
+  string session_id = 7;
+  repeated string issues = 8;  // 性能问题
+  string recommendation = 9;   // 优化建议
+}
+
+/**
+ * 资源峰值
+ */
+message ResourcePeak {
+  string resource_type = 1;
+  double peak_value = 2;
+  google.protobuf.Timestamp peak_time = 3;
+  double avg_value = 4;
+}
+
+/**
+ * 系统中断
+ */
+message SystemOutage {
+  google.protobuf.Timestamp start_time = 1;
+  google.protobuf.Timestamp end_time = 2;
+  google.protobuf.Duration duration = 3;
+  string cause = 4;
+  string impact = 5;
+  string resolution = 6;
+}
+
+/**
+ * 慢查询报告
+ */
+message SlowQueryReport {
+  google.protobuf.Timestamp generation_time = 1;
+  repeated SlowQueryInfo slow_queries = 2;
+  int32 total_slow_queries = 3;
+  map<string, int32> slow_queries_by_user = 4;
+  map<string, int32> slow_queries_by_table = 5;
+  repeated string common_patterns = 6;
+}
+
+/**
+ * 数据导入请求
+ */
+message ImportRequest {
+  string source_type = 1;  // file, database, stream
+  string source_uri = 2;
+  string target_table = 3;
+  string format = 4;
+
+  message ImportOptions {
+    bool overwrite = 1;
+    string partition_by = 2;
+    int32 batch_size = 3;
+    int32 max_errors = 4;
+    bool skip_header = 5;
+    string encoding = 6;
+    string delimiter = 7;
+  }
+
+  ImportOptions options = 5;
+}
+
+/**
+ * 导入进度
+ */
+message ImportProgress {
+  string import_id = 1;
+  double progress = 2;
+  int64 rows_imported = 3;
+  int64 bytes_imported = 4;
+  google.protobuf.Duration elapsed_time = 5;
+  google.protobuf.Duration estimated_remaining = 6;
+  string status = 7;
+  repeated string errors = 8;
+}
+
+/**
+ * 数据导出请求
+ */
+message ExportRequest {
+  string source_table = 1;
+  string target_type = 2;  // file, database, etc.
+  string target_uri = 3;
+  string format = 4;
+
+  message ExportOptions {
+    string query = 1;
+    repeated string columns = 2;
+    string partition_filter = 3;
+    int32 max_file_size = 4;
+    bool compress = 5;
+    string compression_codec = 6;
+  }
+
+  ExportOptions options = 5;
+}
+
+// ================== Executor Point Query Service ==================
+
+message PointQueryRequest {
+    string table_id = 1;
+    bytes key = 2;
+    int64 snapshot_ts = 3;
+    int64 shard_epoch = 4;
+    rawwise.frontend.ir.PbDataVersionToken version_token = 5;
+    // 复合 PK 支持：可选 pk_values map（与 PointInsert/PointUpdate 一致）。
+    // 当传入 pk_values 时 server 端用 keyCodec.encodePrimaryKey(pk_values) 重建 encodedKey；
+    // 否则 fallback 到 legacy 单 PK byte[] key 路径（key=4byte int via bytesToInt）。
+    map<string, rawwise.meta.PbLiteralValue> pk_values = 6;
+    repeated string primary_key_cols = 7;
+    // 表 schema（用于 server 端 RecordCodec 解码 RecordCodec 写入的数据）。
+    // 当 server 已注册 SchemaResolver 时可不传；否则必须传以避免 "No SchemaResolver configured" 错误。
+    rawwise.meta.PbStructType schema = 8;
+    int64 numeric_table_id = 9;
+    // 原始字节 key 直接读取：为 true 时 key 即存储编码后的原始 key bytes（如 agent_memory 的
+    // UUID entryId UTF-8 bytes），server 端不做 bytesToInt/encodePrimaryKey 转换，直接 getRawValue(key)。
+    bool raw_key = 10;
+}
+
+message PointQueryResponse {
+    bytes data = 1;
+    bool found = 2;
+    int64 epoch = 3;
+}
+
+message BatchPointQueryRequest {
+    string table_id = 1;
+    repeated bytes keys = 2;
+    int64 snapshot_ts = 3;
+    int64 shard_epoch = 4;
+    rawwise.frontend.ir.PbDataVersionToken version_token = 5;
+}
+
+message BatchPointQueryResponse {
+    repeated PointQueryResult results = 1;
+    int64 epoch = 2;
+}
+
+// P2: StaleEpoch 真实实现 —— 单独 RPC 查询 shard epoch
+message GetShardEpochRequest {
+    string table_id = 1;
+    int32 shard_id = 2;
+}
+
+message GetShardEpochResponse {
+    int64 epoch = 1;
+}
+
+message PointQueryResult {
+    bytes key = 1;
+    bytes data = 2;
+    bool found = 3;
+}
+
+message PointUpdateRequest {
+    string table_id = 1;
+    bytes key = 2;
+    bytes data = 3;
+    int64 snapshot_ts = 4;
+    rawwise.frontend.ir.PbDataVersionToken version_token = 5;
+    map<string, rawwise.meta.PbLiteralValue> pk_values = 6;
+    map<string, rawwise.meta.PbLiteralValue> set_clauses = 7;
+    repeated string primary_key_cols = 8;
+    rawwise.meta.PbStructType schema = 9;
+    int64 numeric_table_id = 10;
+}
+
+message PointUpdateResponse {
+    bool success = 1;
+    int64 epoch = 2;
+    string error = 3;
+}
+
+message PointDeleteRequest {
+    string table_id = 1;
+    bytes key = 2;
+    rawwise.frontend.ir.PbDataVersionToken version_token = 3;
+    map<string, rawwise.meta.PbLiteralValue> pk_values = 4;
+    repeated string primary_key_cols = 5;
+    rawwise.meta.PbStructType schema = 6;
+    int64 numeric_table_id = 7;
+}
+
+message PointDeleteResponse {
+    bool success = 1;
+    int64 epoch = 2;
+    string error = 3;
+}
+
+message PointInsertRequest {
+    string table_id = 1;
+    bytes key = 2;
+    bytes data = 3;
+    int64 snapshot_ts = 4;
+    rawwise.frontend.ir.PbDataVersionToken version_token = 5;
+    map<string, rawwise.meta.PbLiteralValue> pk_values = 6;
+    repeated string primary_key_cols = 7;
+    // 全行字段值（含 PK 与非 PK 列）。当传入 row_values 时 server 端用 RecordCodec 编码
+    // 写入完整 Record（含 RecordHeader + commitTs + sequenceNumber + Kind=INSERT），与 Spark
+    // 写路径格式一致，避免 JSON vs RecordCodec 双轨格式。
+    // 当 row_values 为空时 fallback 到 legacy data(JSON bytes) 路径（保持向后兼容）。
+    map<string, rawwise.meta.PbLiteralValue> row_values = 8;
+    // 表 schema（与 row_values 同时使用）。server 端用此 schema 经 RecordCodec 编码 Record。
+    // 当 server 已有 SchemaResolver（如生产环境的 catalog 注册）时可不传，否则必须传。
+    rawwise.meta.PbStructType schema = 9;
+    // 表的全局唯一 numericTableId（用于 RecordHeader.tableId）。可选，0 表示未知。
+    int64 numeric_table_id = 10;
+}
+
+message PointInsertResponse {
+    bool success = 1;
+    int64 epoch = 2;
+    string error = 3;
+}
+
+message BatchPointUpdateRequest {
+    string table_id = 1;
+    repeated bytes keys = 2;
+    repeated bytes values = 3;
+    int64 snapshot_ts = 4;
+    rawwise.frontend.ir.PbDataVersionToken version_token = 5;
+}
+
+message BatchPointUpdateResponse {
+    bool success = 1;
+    int32 count = 2;
+}
+
+message KeywordSearchRequest {
+    string table_id = 1;
+    string query = 2;
+    int32 top_k = 3;
+}
+
+message KeywordSearchResponse {
+    repeated KeywordSearchHit hits = 1;
+}
+
+message KeywordSearchHit {
+    string doc_id = 1;
+    double score = 2;
+    string summary = 3;
+}
+
+message AxiomIngestRequest {
+    string table_id = 1;
+    bytes key = 2;
+    bytes body = 3;
+    bool immutable = 4;
+    map<string, string> properties = 5;
+    optional bytes embedding = 6;
+}
+
+message AxiomIngestResponse {
+    string record_key = 1;
+    int32 chunk_count = 2;
+    string status = 3;
+}
+
+message ExecutorRederiveRequest {
+    string table_id = 1;
+    int32 scope = 2;
+    bytes start_key = 3;
+    bytes end_key = 4;
+    bytes single_key = 5;
+    bool force_reindex = 6;
+}
+
+message ExecutorRederiveResponse {
+    int32 total_keys = 1;
+    int32 rederived_count = 2;
+    int32 failed_count = 3;
+    string status = 4;
+}
+
+message EvaluateRequest {
+    string view_id = 1;
+    string table_id = 2;
+}
+
+message EvaluateResponse {
+    double quality_score = 1;
+    bool should_cascade = 2;
+    string evaluation_id = 3;
+}
+
+message CognizeRequest {
+    string semantic_id = 1;
+    string action_type = 2;
+    map<string, string> params = 3;
+}
+
+message CognizeResponse {
+    string action_id = 1;
+    string result = 2;
+    bool success = 3;
+}
+
+message FeedbackRequest {
+    string view_id = 1;
+    string annotation_type = 2;
+    string annotation_value = 3;
+    string source = 4;
+    int32 depth = 5;
+}
+
+message FeedbackResponse {
+    string loop_record_id = 1;
+    bool cascade_triggered = 2;
+}
+
+message FeedbackAnnotationProto {
+    string type = 1;
+    string value = 2;
+    string source = 3;
+    double confidence = 4;
+    int64 timestamp = 5;
+    map<string, string> metadata = 6;
+}
+
+service ExecutorPointQueryService {
+    rpc PointQuery (PointQueryRequest) returns (PointQueryResponse);
+    rpc BatchPointQuery (BatchPointQueryRequest) returns (BatchPointQueryResponse);
+    rpc PointInsert (PointInsertRequest) returns (PointInsertResponse);
+    rpc PointUpdate (PointUpdateRequest) returns (PointUpdateResponse);
+    rpc PointDelete (PointDeleteRequest) returns (PointDeleteResponse);
+    rpc BatchPointUpdate (BatchPointUpdateRequest) returns (BatchPointUpdateResponse);
+    rpc VectorSearch (VectorSearchRequest) returns (VectorSearchResponse);
+    rpc KeywordSearch (KeywordSearchRequest) returns (KeywordSearchResponse);
+    rpc AxiomIngest (AxiomIngestRequest) returns (AxiomIngestResponse);
+    rpc Evaluate (EvaluateRequest) returns (EvaluateResponse);
+    rpc Cognize (CognizeRequest) returns (CognizeResponse);
+    rpc ProcessFeedback (FeedbackRequest) returns (FeedbackResponse);
+    rpc AxiomRederive (ExecutorRederiveRequest) returns (ExecutorRederiveResponse);
+    // P2: Query shard epoch for StaleEpoch retry
+    rpc GetShardEpoch (GetShardEpochRequest) returns (GetShardEpochResponse);
+    rpc ScanKeys (ScanKeysRequest) returns (stream KeyBatch);
+    rpc MigrateBatch (MigrateBatchRequest) returns (MigrateBatchResponse);
+    rpc ReplicateWal (stream WalEntry) returns (ReplicateAck);
+    rpc StreamSnapshot (SnapshotRequest) returns (stream SnapshotChunk);
+}
+
+
+// ================== Shard Migration Messages ==================
+
+message ScanKeysRequest {
+  string table_id = 1;
+  int32 shard_id = 2;
+  int32 batch_size = 3;
+  int32 total_shard_count = 4;
+}
+
+message KeyBatch {
+  repeated bytes keys = 1;
+  repeated bytes values = 2;
+  bool has_more = 3;
+}
+
+message MigrateBatchRequest {
+  string table_id = 1;
+  int32 target_shard_id = 2;
+  repeated bytes keys = 3;
+  repeated bytes values = 4;
+  bool delete_after_migrate = 5;
+}
+
+message MigrateBatchResponse {
+  int32 migrated_count = 1;
+  int32 failed_count = 2;
+  string error = 3;
+}
+
+
+// ================== WAL Replication Messages ==================
+
+message WalEntry {
+  int64 seq = 1;
+  bytes payload = 2;
+  int64 timestamp = 3;
+  string table_id = 4;
+}
+
+message ReplicateAck {
+  int64 acked_seq = 1;
+  bool success = 2;
+  string error = 3;
+}
+
+message SnapshotRequest {
+  string table_id = 1;
+  int32 shard_id = 2;
+  int64 from_seq = 3;
+}
+
+message SnapshotChunk {
+  repeated bytes keys = 1;
+  repeated bytes values = 2;
+  bool has_more = 3;
+}
+
+// ================== Graph Query Service ==================
+
+service GraphQueryService {
+  rpc GraphTraverse (GraphTraversalRequest) returns (GraphTraversalResponse);
+  rpc GraphFindEntity (EntityLookupRequest) returns (EntityLookupResponse);
+  rpc GraphLookupDiaIds (DiaIdLookupRequest) returns (DiaIdLookupResponse);
+}
+
+message GraphTraversalRequest {
+  repeated string seed_entity_ids = 1;
+  int32 max_hops = 2;
+  EdgeFilterProto filter = 3;
+  int32 shard_id = 4;
+}
+
+message GraphTraversalResponse {
+  repeated EntityScoreProto scores = 1;
+  bool truncated = 2;
+}
+
+message EntityScoreProto {
+  string entity_id = 1;
+  double score = 2;
+}
+
+message EdgeFilterProto {
+  repeated string allowed_rel_types = 1;
+  double min_weight = 2;
+}
+
+message EntityLookupRequest {
+  string sample_id = 1;
+  string name = 2;
+  int32 shard_id = 3;
+}
+
+message EntityLookupResponse {
+  bool found = 1;
+  EntityProto entity = 2;
+}
+
+message EntityProto {
+  string id = 1;
+  string type = 2;
+  string name = 3;
+  string surface = 4;
+  double confidence = 5;
+}
+
+message DiaIdLookupRequest {
+  string entity_id = 1;
+  int32 shard_id = 2;
+}
+
+message DiaIdLookupResponse {
+  repeated DiaRefProto refs = 1;
+}
+
+message DiaRefProto {
+  string dia_id = 1;
+  string sample_id = 2;
+  int32 turn_idx = 3;
+}
+
+// ================== Training Data Service (AI Reserved) ==================
+
+message SplitPlanRequest {
+  string table_id = 1;
+  int64 snapshot_id = 2;
+  int32 num_splits = 3;
+  int32 prefetch_depth = 4;
+  int32 split_granularity = 5;
+  rawwise.frontend.ir.PbDataVersionToken version_token = 6;
+}
+
+message SplitPlanResponse {
+  string plan_id = 1;
+  repeated SplitInfo splits = 2;
+  int64 data_version = 3;
+  string snapshot_id = 4;
+}
+
+message SplitInfo {
+  string split_id = 1;
+  string file_path = 2;
+  int64 start_offset = 3;
+  int64 length = 4;
+  map<string, string> partition_values = 5;
+  int64 record_count = 6;
+}
+
+message AcquireBlockLeaseRequest {
+  string plan_id = 1;
+  string split_id = 2;
+  int64 lease_duration_ms = 3;
+}
+
+message BlockLeaseResponse {
+  string lease_id = 1;
+  repeated string block_paths = 2;
+  int64 lease_expiry_ms = 3;
+  bool granted = 4;
+}
+
+message BindCheckpointRequest {
+  string plan_id = 1;
+  string checkpoint_id = 2;
+  int64 snapshot_lsn = 3;
+  int64 split_plan_version = 4;
+  int64 rng_seed = 5;
+}
+
+message CheckpointBindingResponse {
+  bool bound = 1;
+  string checkpoint_path = 2;
+}
+
+service TrainingDataService {
+  rpc GetSplitPlan(SplitPlanRequest) returns (SplitPlanResponse);
+  rpc AcquireBlockLease(AcquireBlockLeaseRequest) returns (BlockLeaseResponse);
+  rpc BindCheckpoint(BindCheckpointRequest) returns (CheckpointBindingResponse);
+}
+
+// ================== Inference Service (AI Reserved) ==================
+
+message PointInferenceRequest {
+  string model_id = 1;
+  bytes input_data = 2;
+  int64 snapshot_ts = 3;
+  map<string, string> parameters = 4;
+}
+
+message InferenceResponse {
+  bytes output_data = 1;
+  double confidence = 2;
+  int64 latency_ms = 3;
+  map<string, string> metadata = 4;
+}
+
+message BatchInferenceRequest {
+  string model_id = 1;
+  repeated bytes input_batch = 2;
+  int64 snapshot_ts = 3;
+  map<string, string> parameters = 4;
+}
+
+message BatchInferenceResponse {
+  repeated InferenceResponse results = 1;
+  int64 total_latency_ms = 2;
+}
+
+message VectorSearchRequest {
+  string table_id = 1;
+  bytes query_vector = 2;
+  int32 top_k = 3;
+  double threshold = 4;
+  map<string, string> filters = 5;
+}
+
+message VectorSearchResponse {
+  repeated VectorSearchResult results = 1;
+  int32 total_matches = 2;
+}
+
+message VectorSearchResult {
+  bytes key = 1;
+  double similarity = 2;
+  bytes data = 3;
+  map<string, string> metadata = 4;
+}
+
+service InferenceService {
+  rpc PointInference(PointInferenceRequest) returns (InferenceResponse);
+  rpc BatchInference(BatchInferenceRequest) returns (BatchInferenceResponse);
+  rpc VectorSearch(VectorSearchRequest) returns (VectorSearchResponse);
+}

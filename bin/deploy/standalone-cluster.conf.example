@@ -1,0 +1,54 @@
+# RawWise Standalone Local Cluster Configuration
+# Copy this file to standalone-cluster.conf and customize.
+#
+# This mode uses Spark Standalone cluster manager to run:
+#   - 1 Spark Master process
+#   - N Spark Worker processes (each = 1 Backend Node with its own JVM)
+#   - 1 Backend Server (Spark Driver, connects to spark://localhost:7077)
+#   - 1 Frontend (HTTP -> gRPC to Backend)
+#   - Metastore (embedded in Frontend or standalone process)
+#
+# All processes run on localhost.
+
+# Number of Spark Worker processes (each = 1 Backend Node)
+WORKER_COUNT=4
+
+# CPU cores per Worker (maps to spark.worker.cores)
+# Each Worker runs 1 Executor; set this to 1 for strict 1:1 mapping
+WORKER_CORES=2
+
+# Memory per Worker (maps to spark.worker.memory)
+WORKER_MEMORY="2g"
+
+# Spark Master ports
+SPARK_MASTER_PORT=7077
+SPARK_MASTER_WEBUI_PORT=8088
+
+# Backend Server ports
+BACKEND_PORT=9090
+BACKEND_SPARK_MASTER="spark://localhost:7077"
+BACKEND_HEAP="4g"
+BACKEND_DIRECT_MEMORY="2g"
+
+# Frontend port
+FRONTEND_PORT=8080
+FRONTEND_HEAP="2g"
+
+# Metastore mode: "embedded" (in Frontend) or "standalone" (separate process)
+METASTORE_MODE="embedded"
+METASTORE_PORT=9091
+METASTORE_TYPE="rocksdb"
+METASTORE_BASE_PATH="/tmp/rawwise/metastore"
+
+# Warehouse path (shared by Backend + Frontend)
+WAREHOUSE_PATH="/tmp/rawwise/warehouse"
+
+# IR pipeline
+IR_ENABLED=true
+
+# Auth (set to true for authenticated mode)
+AUTH_ENABLED=false
+
+# Data directories (relative to PROJECT_DIR)
+LOG_DIR="logs"
+PID_DIR="run"

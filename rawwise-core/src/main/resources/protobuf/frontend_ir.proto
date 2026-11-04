@@ -1,0 +1,296 @@
+syntax = "proto3";
+
+package rawwise.frontend.ir;
+
+option java_package = "io.github.rawwise.frontend.ir.proto";
+option java_outer_classname = "FrontendIrProto";
+
+import "rawwise_meta.proto";
+import "rawwise_schema.proto";
+
+// ====================================================================
+// Top-level IR message
+// ====================================================================
+message PbQueryIR {
+    IRType type = 1;
+    string table_identifier = 2;
+    PbTableMetaIR table_meta = 3;
+    int64 snapshot_id = 4;
+
+    oneof body {
+        PbPointQueryIR point = 10;
+        PbBatchPointQueryIR batch_point = 11;
+        PbMetadataQueryIR metadata = 12;
+        PbScanQueryIR scan = 13;
+        PbAggregateQueryIR aggregate = 14;
+        PbJoinQueryIR join = 15;
+        PbWriteQueryIR write = 16;
+        PbUpdateRangeIR update_range = 17;
+        PbDeleteRangeIR delete_range = 18;
+        PbDDLIR ddl = 19;
+        PbUpdateQueryIR point_update = 20;
+        PbDeleteQueryIR point_delete = 21;
+    }
+}
+
+enum IRType {
+    POINT_QUERY = 0;
+    BATCH_POINT_QUERY = 1;
+    METADATA_COUNT_ALL = 2;
+    METADATA_COUNT_COLUMN = 3;
+    METADATA_MIN = 4;
+    METADATA_MAX = 5;
+    METADATA_TABLE_INFO = 6;
+    SCAN = 7;
+    AGGREGATE = 8;
+    JOIN = 9;
+    INSERT = 10;
+    BATCH_INSERT = 11;
+    UPDATE_RANGE = 12;
+    DELETE_RANGE = 13;
+    CREATE_TABLE = 14;
+    DROP_TABLE = 15;
+    ALTER_TABLE = 16;
+    TRUNCATE = 17;
+    REFRESH = 18;
+    POINT_UPDATE = 19;
+    POINT_DELETE = 20;
+}
+
+// ====================================================================
+// TableMetaIR
+// ====================================================================
+message PbTableMetaIR {
+    string table_identifier = 1;
+    int64 table_id = 2;
+    rawwise.meta.TableType table_type = 3;
+    rawwise.schema.PbTypeSchema schema = 4;
+    repeated string primary_key_cols = 5;
+    map<string, string> properties = 6;
+    int32 schema_version = 7;
+}
+
+// ====================================================================
+// PointQuery
+// ====================================================================
+message PbDataVersionToken {
+    string table_id = 1;
+    int64 commit_ts = 2;
+}
+
+message PbPointQueryIR {
+    map<string, rawwise.meta.PbLiteralValue> pk_values = 1;
+    bytes encoded_key = 2;
+    repeated string projection = 3;
+    string target_executor_id = 4;
+    int32 shard_id = 5;
+    int64 shard_epoch = 6;
+    int64 snapshot_ts = 7;
+    PbDataVersionToken version_token = 8;
+}
+
+message PbBatchPointQueryIR {
+    repeated bytes encoded_keys = 1;
+    repeated string projection = 2;
+    string target_executor_id = 3;
+    int32 shard_id = 4;
+    int64 shard_epoch = 5;
+    int64 snapshot_ts = 6;
+    PbDataVersionToken version_token = 7;
+}
+
+// ====================================================================
+// MetadataQuery
+// ====================================================================
+message PbMetadataQueryIR {
+    MetadataQueryType query_type = 1;
+    optional string column = 2;
+    bool distinct = 3;
+    bool is_min = 4;
+}
+
+enum MetadataQueryType {
+    COUNT_ALL = 0;
+    COUNT_COLUMN = 1;
+    MIN_VALUE = 2;
+    MAX_VALUE = 3;
+    TABLE_INFO = 4;
+}
+
+// ====================================================================
+// ScanQuery
+// ====================================================================
+message PbScanQueryIR {
+    repeated PbProjectionColumn projection = 1;
+    rawwise.meta.PbExpression filter = 2;
+    repeated PbSortKey sort_keys = 3;
+    int32 limit = 4;
+    int32 offset = 5;
+    rawwise.meta.PbExpression pre_filter = 6;
+}
+
+message PbProjectionColumn {
+    string name = 1;
+    int32 field_id = 2;
+    string alias = 3;
+}
+
+message PbSortKey {
+    string column = 1;
+    bool ascending = 2;
+    bool nulls_first = 3;
+}
+
+// ====================================================================
+// AggregateQuery
+// ====================================================================
+message PbAggregateQueryIR {
+    repeated PbTableMetaIR table_metas = 1;
+    repeated PbAggregateColumn aggregates = 2;
+    repeated rawwise.meta.PbExpression group_by_keys = 3;
+    rawwise.meta.PbExpression having_filter = 4;
+    rawwise.meta.PbExpression where_filter = 5;
+}
+
+message PbAggregateColumn {
+    AggregateFunc function = 1;
+    string column = 2;
+    optional string alias = 3;
+}
+
+enum AggregateFunc {
+    SUM = 0;
+    COUNT = 1;
+    AVG = 2;
+    MIN = 3;
+    MAX = 4;
+    COUNT_DISTINCT = 5;
+}
+
+// ====================================================================
+// JoinQuery
+// ====================================================================
+message PbJoinQueryIR {
+    repeated PbTableMetaIR table_metas = 1;
+    PbQueryIR left = 2;
+    PbQueryIR right = 3;
+    JoinKind join_type = 4;
+    rawwise.meta.PbExpression join_condition = 5;
+    repeated PbProjectionColumn projection = 6;
+    rawwise.meta.PbExpression post_filter = 7;
+    int32 limit = 8;
+}
+
+enum JoinKind {
+    INNER = 0;
+    LEFT_OUTER = 1;
+    RIGHT_OUTER = 2;
+    FULL_OUTER = 3;
+    CROSS = 4;
+    LEFT_SEMI = 5;
+    LEFT_ANTI = 6;
+}
+
+// ====================================================================
+// WriteQuery / UpdateRange / DeleteRange / DDL
+// ====================================================================
+message PbWriteQueryIR {
+    WriteType write_type = 1;
+    repeated PbRow rows = 2;
+    PbQueryIR insert_from_query = 3;
+}
+
+message PbRow {
+    map<string, rawwise.meta.PbLiteralValue> values = 1;
+}
+
+message PbUpdateRangeIR {
+    map<string, rawwise.meta.PbLiteralValue> set_clauses = 1;
+    rawwise.meta.PbExpression range_filter = 2;
+}
+
+message PbDeleteRangeIR {
+    rawwise.meta.PbExpression range_filter = 1;
+}
+
+message PbUpdateQueryIR {
+    map<string, rawwise.meta.PbLiteralValue> pk_values = 1;
+    bytes encoded_key = 2;
+    map<string, rawwise.meta.PbLiteralValue> set_clauses = 3;
+    int64 snapshot_id = 4;
+    UpdateMode mode = 5;
+    string target_executor_id = 6;
+    int32 shard_id = 7;
+    int64 shard_epoch = 8;
+}
+
+message PbDeleteQueryIR {
+    map<string, rawwise.meta.PbLiteralValue> pk_values = 1;
+    bytes encoded_key = 2;
+    int64 snapshot_id = 3;
+    UpdateMode mode = 4;
+    string target_executor_id = 5;
+    int32 shard_id = 6;
+    int64 shard_epoch = 7;
+}
+
+enum UpdateMode {
+    UPDATE_MODE_POINT = 0;
+    UPDATE_MODE_LAZY = 1;
+}
+
+message PbDDLIR {
+    DDLType ddl_type = 1;
+    map<string, string> options = 2;
+}
+
+enum WriteType {
+    WRITE_INSERT = 0;
+    WRITE_BATCH_INSERT = 1;
+    WRITE_INSERT_SELECT = 2;
+}
+
+enum DDLType {
+    DDL_CREATE_TABLE = 0;
+    DDL_DROP_TABLE = 1;
+    DDL_ALTER_TABLE = 2;
+    DDL_TRUNCATE = 3;
+    DDL_REFRESH = 4;
+}
+
+// ====================================================================
+// Frontend IR Service
+// ====================================================================
+service FrontendIRService {
+    rpc SubmitIR (SubmitIRRequest) returns (SubmitIRResponse);
+}
+
+message SubmitIRRequest {
+    PbQueryIR ir = 1;
+    int64 timeout_ms = 2;
+}
+
+message SubmitIRResponse {
+    string job_id = 1;
+    bool accepted = 2;
+    string error = 3;
+}
+
+message ExecuteIRRequest {
+    PbQueryIR ir = 1;
+    int64 timeout_ms = 2;
+}
+
+message ExecuteIRResponse {
+    string job_id = 1;
+    bool succeeded = 2;
+    string error = 3;
+    repeated ExecuteIRColumn columns = 4;
+    int32 total_rows = 5;
+    bytes data = 6;
+}
+
+message ExecuteIRColumn {
+    string name = 1;
+    string type = 2;
+}

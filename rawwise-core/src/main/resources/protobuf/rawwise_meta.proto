@@ -1,0 +1,518 @@
+syntax = "proto3";
+
+package rawwise.meta;
+
+option java_package = "io.github.rawwise.meta";
+option java_multiple_files = true;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+// ==================== 类型系统 ====================
+
+enum PrimitiveType {
+  PRIMITIVE_TYPE_UNSPECIFIED = 0;
+  BOOLEAN = 1;
+  INT8 = 2;
+  INT16 = 3;
+  INT32 = 4;
+  INT64 = 5;
+  FLOAT32 = 6;
+  FLOAT64 = 7;
+  DECIMAL = 8;
+  STRING = 9;
+  BINARY = 10;
+  DATE = 11;
+  TIMESTAMP = 12;
+}
+
+message PbDataType {
+  oneof kind {
+    PrimitiveType primitive_type = 1;
+    PbMetaArrayType array_type = 5;
+    PbMetaMapType map_type = 6;
+    PbMetaStructType struct_type = 7;
+  }
+  optional int32 precision = 2;
+  optional int32 scale = 3;
+  bool is_nullable = 4;
+}
+
+message PbMetaArrayType {
+  PbDataType element_type = 1;
+  int32 fixed_size = 2;
+}
+
+message PbMetaMapType {
+  PbDataType key_type = 1;
+  PbDataType value_type = 2;
+}
+
+message PbMetaStructType {
+  repeated PbStructField fields = 1;
+}
+
+message PbStructField {
+  string field_name = 1;
+  PbDataType data_type = 2;
+  optional string comment = 3;
+  map<string, string> metadata = 4;
+  optional int32 field_id = 5;
+}
+
+message PbStructType {
+  repeated PbStructField fields = 1;
+}
+
+// ==================== Schema & 约束 ====================
+
+message PbPrimaryKeyConstraint {
+  repeated string field_names = 1;
+}
+
+message PbColumnGroupDef {
+  string name = 1;
+  repeated string column_names = 2;
+  string encoding = 3;
+  int32 schema_version = 4;
+  repeated PbDataType column_types = 5;
+  repeated int32 column_field_ids = 6;
+}
+
+message PbSchema {
+  PbStructType struct_type = 1;
+  map<string, string> properties = 2;
+  int64 version = 3;
+  repeated PbPrimaryKeyConstraint constraints = 4;
+  repeated PbColumnGroupDef column_groups = 5;
+}
+
+message PbSchemaHistoryEntry {
+  bytes schema_bytes = 1;
+  int64 parent_version = 2;
+  string schema_digest = 3;
+  int64 snapshot_id = 4;
+  int64 created_at_millis = 5;
+  map<string, string> metadata = 6;
+  string operation_type = 7;
+  string field_id_set_digest = 8;
+  optional int64 version = 9;
+}
+
+// ==================== 快照 ====================
+
+message PbSnapshot {
+  int64 snapshot_id = 1;
+  repeated string manifest_ids = 7;
+  int64 timestamp = 3;
+  string summary = 4;
+  string operation = 5;
+  PbSchema schema = 6;
+}
+
+// ==================== 分桶与分区 ====================
+
+enum BucketTransform {
+  BUCKET_TRANSFORM_UNSPECIFIED = 0;
+  IDENTITY = 1;       // 原值（无分区，单桶）
+  HASH = 2;           // Hash 分桶
+  RANGE = 3;          // Range 分区
+  VALUE = 4;          // Value 分区（离散值分区）
+}
+
+message PbBucketSpec {
+  string source_column = 1;
+  BucketTransform transform = 2;
+  int32 num_buckets = 3;          // 0 表示由 transform 决定数量
+  bool hidden = 4;                // 单桶时是否隐藏目录层级
+}
+
+message PbPartitionSpec {
+  repeated PbBucketSpec bucket_specs = 1;     // 多级分桶规则
+  int32 partition_fields_count = 2;         // 参与分区的字段数
+}
+
+// ==================== 隐藏列配置 ====================
+
+enum HiddenColumnType {
+  HIDDEN_COLUMN_TYPE_UNSPECIFIED = 0;
+  ROW_NUMBER = 1;              // 行号（所有表都有）
+  HIDDEN_PRIMARY_KEY = 2;      // 隐藏自增主键（仅 AppendOnly）
+  COMMIT_TIMESTAMP = 3;        // 提交时间戳
+  OPERATION_TYPE = 4;          // 操作类型标记
+}
+
+message PbHiddenColumnDef {
+  HiddenColumnType type = 1;
+  string column_name = 2;      // 实际列名如 _row_number
+  PbDataType data_type = 3;
+  bool visible = 4;            // 用户是否可见
+}
+
+message PbHiddenColumnConfig {
+  repeated PbHiddenColumnDef columns = 1;
+}
+
+// ==================== 表元数据 ====================
+
+enum TableType {
+  TABLE_TYPE_UNSPECIFIED = 0;
+  PRIMARY_KEY = 1;
+  APPEND_ONLY = 2;
+}
+
+message PbTableIdentifier {
+  string catalog = 1;           // 目录名（默认 "default"）
+  string database = 2;          // 数据库名
+  string table = 3;             // 表名
+}
+
+message PbTableMetadata {
+  PbTableIdentifier identifier = 1;
+  int64 table_id = 2;           // 全局唯一表ID
+  TableType table_type = 3;
+  PbSchema schema = 4;
+  PbPrimaryKeyConstraint primary_key = 5;
+  PbPartitionSpec partition_spec = 6;
+  PbHiddenColumnConfig hidden_columns = 7;
+  PbSnapshot current_snapshot = 8;
+  map<string, string> properties = 9;
+  string location = 10;         // 数据存储路径
+  google.protobuf.Timestamp created_at = 11;
+  google.protobuf.Timestamp updated_at = 12;
+}
+
+// ==================== Expression（核心能力）====================
+
+enum ExprType {
+  EXPR_TYPE_UNSPECIFIED = 0;
+  LITERAL = 1;
+  COLUMN_REF = 2;
+  EQUAL = 3;
+  NOT_EQUAL = 4;
+  GREATER_THAN = 5;
+  GREATER_THAN_OR_EQUAL = 6;
+  LESS_THAN = 7;
+  LESS_THAN_OR_EQUAL = 8;
+  IN = 9;
+  NOT_IN = 10;
+  AND = 11;
+  OR = 12;
+  NOT = 13;
+  BETWEEN = 14;
+  LIKE = 15;
+  STARTS_WITH = 16;
+  ENDS_WITH = 17;
+  CONTAINS = 18;
+  IS_NULL = 19;
+  IS_NOT_NULL = 20;
+  DIRECT = 21;
+  ARITHMETIC_ADD = 22;
+  ARITHMETIC_SUBTRACT = 23;
+  ARITHMETIC_MULTIPLY = 24;
+  ARITHMETIC_DIVIDE = 25;
+}
+
+message PbLiteralValue {
+  oneof value {
+    bool bool_val = 1;
+    int32 int32_val = 2;
+    int64 int64_val = 3;
+    float float_val = 4;
+    double double_val = 5;
+    string string_val = 6;
+    bytes bytes_val = 7;
+  }
+}
+
+message PbExpression {
+  ExprType expr_type = 1;
+  repeated PbExpression children = 2;
+  optional PbLiteralValue literal = 3;
+  optional string column_ref = 4;
+  map<string, string> metadata = 5;
+}
+
+// ==================== Lazy Update（范围更新）====================
+// NWL0 Metastore 注册路径已删除，UpdateLog 现使用 NWL 文件格式（active.nwl + archive-*.nwl）。
+// 不再通过 Metastore gRPC 注册 UpdateLogEntry。
+
+// ==================== 文件元数据（LSM / DataBlock）====================
+
+enum FileFormat {
+  FILE_FORMAT_UNSPECIFIED = 0;
+  PARQUET = 1;
+  ORC = 2;
+}
+
+message PbFileMetadata {
+  string file_path = 1;
+  int32 level = 2;
+  bytes min_key = 3;
+  bytes max_key = 4;
+  int64 min_commit_ts = 5;
+  int64 max_commit_ts = 6;
+  int64 file_size_bytes = 7;
+  FileFormat format = 8;
+  string table_name = 9;
+}
+
+// ==================== 操作与事务 ====================
+
+message PbManifestContent {
+  string manifest_id = 1;
+  int64 snapshot_id = 2;
+  bytes content = 3;
+  int32 content_size = 4;
+  int64 created_at_millis = 5;
+}
+
+message PbSnapshotUpdate {
+  int64 base_snapshot_id = 1;
+  int64 new_snapshot_id = 2;
+  repeated string manifest_ids = 3;
+  int64 created_at_millis = 4;
+  string summary = 5;
+}
+
+message PbTableOperation {
+  string operation_type = 1;
+  string table_name = 2;
+  optional PbSchema schema = 3;
+  map<string, string> properties = 4;
+  int64 timestamp = 5;
+  oneof payload {
+    PbManifestContent manifest_write = 6;
+    PbSnapshotUpdate snapshot_update = 7;
+    PbFileMetadata file_register = 8;
+    string file_unregister_path = 9;
+    string manifest_delete_id = 10;
+  }
+}
+
+message PbCommitRequest {
+  int64 commit_id = 1;
+  repeated PbTableOperation operations = 2;
+  optional string table_id = 3;
+  optional int64 base_snapshot_id = 4;
+  optional int64 txn_id = 5;
+}
+
+enum CommitStatus {
+  COMMIT_STATUS_UNSPECIFIED = 0;
+  OK = 1;
+  CONFLICT = 2;
+  ERROR = 3;
+}
+
+message PbOperationResult {
+  bool success = 1;
+  optional string message = 2;
+  optional int64 commit_id = 3;
+  optional CommitStatus status = 4;
+  optional int64 new_snapshot_id = 5;
+  optional string conflict_reason = 6;
+}
+
+// ==================== 请求/响应 ====================
+
+message PbCreateTableRequest {
+  PbTableMetadata metadata = 1;
+}
+
+message PbDropTableRequest {
+  string table_name = 1;
+}
+
+message PbGetTableRequest {
+  string table_name = 1;
+}
+
+message PbGetSnapshotRequest {
+  string table_name = 1;
+  int64 snapshot_id = 2;
+}
+
+message PbGetSnapshotsRequest {
+  string table_name = 1;
+}
+
+message PbAlterTableRequest {
+  string table_name = 1;
+  PbSchema new_schema = 2;
+}
+
+message PbListFilesRequest {
+  string table_name = 1;
+  optional int32 level = 2;
+}
+
+message PbListFilesResponse {
+  repeated PbFileMetadata files = 1;
+}
+
+// ==================== gRPC 服务定义 ====================
+
+service MetastoreService {
+
+  // --- 表管理 ---
+  rpc CreateTable(PbCreateTableRequest) returns (PbOperationResult);
+  rpc DropTable(PbDropTableRequest) returns (PbOperationResult);
+  rpc GetTable(PbGetTableRequest) returns (PbTableMetadata);
+  rpc AlterTable(PbAlterTableRequest) returns (PbOperationResult);
+
+  // --- 快照管理 ---
+  rpc GetSnapshot(PbGetSnapshotRequest) returns (PbSnapshot);
+  rpc GetSnapshots(PbGetSnapshotsRequest) returns (PbSnapshotList);
+
+  // --- 事务 ---
+  rpc BeginCommit(PbCommitRequest) returns (PbOperationResult);
+  rpc Commit(PbCommitId) returns (PbOperationResult);
+  rpc AbortCommit(PbCommitId) returns (PbOperationResult);
+
+  // --- 文件元数据（Compaction / Scan 使用）---
+  rpc PutFile(PbFileMetadata) returns (PbOperationResult);
+  rpc ListFiles(PbListFilesRequest) returns (PbListFilesResponse);
+  rpc RemoveFile(PbFileMetadata) returns (PbOperationResult);
+
+  // --- Metastore RPC 集成 ---
+  rpc GetLatestSnapshot(PbGetLatestSnapshotRequest) returns (PbSnapshot);
+  rpc GenerateSnapshotId(GenerateSnapshotIdRequest) returns (GenerateSnapshotIdResponse);
+  rpc GetManifest(GetManifestRequest) returns (PbManifestContent);
+  rpc ListTables(ListTablesRequest) returns (ListTablesResponse);
+
+  // --- Low-level KV operations ---
+  rpc KvGet(KvGetRequest) returns (KvGetResponse);
+  rpc KvPut(KvPutRequest) returns (KvPutResponse);
+  rpc KvDelete(KvDeleteRequest) returns (KvDeleteResponse);
+  rpc KvExists(KvExistsRequest) returns (KvExistsResponse);
+  rpc KvScan(KvScanRequest) returns (stream KvEntry);
+  rpc KvScanRange(KvScanRangeRequest) returns (stream KvEntry);
+  rpc KvCompareAndSwap(KvCasRequest) returns (KvCasResponse);
+  rpc KvBatchWrite(KvBatchWriteRequest) returns (KvBatchWriteResponse);
+  rpc KvFlush(google.protobuf.Empty) returns (KvFlushResponse);
+}
+
+message PbGetLatestSnapshotRequest {
+  string table_name = 1;
+}
+
+message GenerateSnapshotIdRequest {
+  string table_id = 1;
+}
+
+message GenerateSnapshotIdResponse {
+  int64 snapshot_id = 1;
+}
+
+message GetManifestRequest {
+  string table_id = 1;
+  string manifest_id = 2;
+}
+
+message ListTablesRequest {
+  string catalog = 1;
+  string database = 2;
+}
+
+message ListTablesResponse {
+  repeated string table_names = 1;
+}
+
+message PbSnapshotList {
+  repeated PbSnapshot snapshots = 1;
+}
+
+message PbCommitId {
+  int64 value = 1;
+}
+
+// ==================== KV-level Messages ====================
+
+message KvGetRequest {
+  bytes key = 1;
+}
+
+message KvGetResponse {
+  bool found = 1;
+  bytes value = 2;
+}
+
+message KvPutRequest {
+  bytes key = 1;
+  bytes value = 2;
+}
+
+message KvPutResponse {}
+
+message KvDeleteRequest {
+  bytes key = 1;
+}
+
+message KvDeleteResponse {}
+
+message KvExistsRequest {
+  bytes key = 1;
+}
+
+message KvExistsResponse {
+  bool exists = 1;
+}
+
+message KvEntry {
+  bytes key = 1;
+  bytes value = 2;
+}
+
+message KvScanRequest {
+  bytes prefix = 1;
+  optional int32 limit = 2;
+}
+
+message KvScanRangeRequest {
+  bytes start_inclusive = 1;
+  bytes end_exclusive = 2;
+  optional int32 limit = 3;
+}
+
+enum PbPreconditionKind {
+  PRECONDITION_KIND_UNSPECIFIED = 0;
+  EXISTS = 1;
+  NOT_EXISTS = 2;
+  VALUE_EQUALS = 3;
+}
+
+message PbPrecondition {
+  PbPreconditionKind kind = 1;
+  bytes key = 2;
+  optional bytes expected_value = 3;
+}
+
+enum PbMutationKind {
+  MUTATION_KIND_UNSPECIFIED = 0;
+  PUT = 1;
+  DELETE = 2;
+}
+
+message PbMutation {
+  PbMutationKind kind = 1;
+  bytes key = 2;
+  optional bytes value = 3;
+}
+
+message KvCasRequest {
+  repeated PbPrecondition preconditions = 1;
+  repeated PbMutation mutations = 2;
+}
+
+message KvCasResponse {
+  bool success = 1;
+}
+
+message KvBatchWriteRequest {
+  repeated PbMutation mutations = 1;
+}
+
+message KvBatchWriteResponse {}
+
+message KvFlushResponse {}

@@ -1,0 +1,27 @@
+package io.github.rawwise.frontend.ir;
+
+public enum IRType {
+    POINT_QUERY,
+    BATCH_POINT_QUERY,
+    METADATA_COUNT_ALL,
+    METADATA_COUNT_COLUMN,
+    METADATA_MIN,
+    METADATA_MAX,
+    METADATA_TABLE_INFO,
+    SCAN,
+    AGGREGATE,
+    JOIN,
+    INSERT,
+    BATCH_INSERT,
+    UPDATE_RANGE,
+    DELETE_RANGE,
+    POINT_UPDATE,
+    POINT_DELETE,
+    CREATE_TABLE,
+    DROP_TABLE,
+    ALTER_TABLE,
+    TRUNCATE,
+    REFRESH,
+    CREATE_INDEX,
+    DROP_INDEX
+}

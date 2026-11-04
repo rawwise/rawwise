@@ -1,0 +1,81 @@
+# =============================================================
+# RawWise 部署配置模板
+#
+# 用法:
+#   bash bin/deploy.sh init        # 复制本文件为 deploy/deploy.conf
+#   vi deploy/deploy.conf          # 按实际环境修改
+#   bash bin/deploy.sh start       # 启动
+#
+# 注意: deploy.conf 含环境相关参数，不要提交到版本库（默认已被忽略）
+# =============================================================
+
+# ---------- 部署模式: standalone(单机) | cluster(多机) ----------
+DEPLOY_MODE="standalone"
+
+# ---------- 数据目录与端口 ----------
+DATA_DIR="$HOME/.rawwise/data"
+FRONTEND_PORT=8080
+METASTORE_GRPC_PORT=9001
+BACKEND_SERVER_GRPC_PORT=9090
+
+# ---------- JVM 与存储 ----------
+EMBEDDED_HEAP="6g"
+MAX_DIRECT_MEMORY="2g"
+STORAGE_LMDB_INIT_MB=256
+STORAGE_LMDB_MAX_MB=4096
+
+# ---------- Embedding / Summarization（留空表示 noop，不调用外部服务） ----------
+EMBEDDING_TYPE="noop"
+EMBEDDING_ENDPOINT=""
+EMBEDDING_MODEL=""
+EMBEDDING_API_KEY=""
+EMBEDDING_DIMENSION=1024
+SUMMARIZATION_TYPE="noop"
+SUMMARIZATION_ENDPOINT=""
+SUMMARIZATION_MODEL=""
+SUMMARIZATION_API_KEY=""
+
+# ---------- 限流 ----------
+RATE_LIMIT_PER_IP=10000
+RATE_LIMIT_GLOBAL=50000
+
+# ---------- 安全（生产环境建议开启 AUTH 与 TLS） ----------
+AUTH_ENABLED=false
+AUTH_UNSAFE_DISABLE=true
+TLS_ENABLED=false
+
+# =============================================================
+# 以下为集群模式配置（DEPLOY_MODE="cluster" 时生效）
+# =============================================================
+
+# 节点列表，格式: "角色:地址:端口[:附加参数]"
+# 角色: metastore | frontend | backend-server | backend-node
+# metastore / frontend / backend-server 各必须有一个
+# NODES=(
+#     "metastore:10.0.0.11:9001"
+#     "frontend:10.0.0.12:8080"
+#     "backend-server:10.0.0.13:9090"
+#     "backend-node:10.0.0.14:9091:shard-id=0"
+#     "backend-node:10.0.0.15:9092:shard-id=1"
+# )
+
+# SSH 连接：推荐使用密钥认证；脚本虽支持 SSH_PASSWORD，但不建议使用
+# SSH_USER="rawwise"
+# SSH_KEY="$HOME/.ssh/id_ed25519"
+
+# 远端目录
+# REMOTE_RAWWISE_DIR="/opt/rawwise"
+# REMOTE_WAREHOUSE="/var/lib/rawwise/warehouse"
+# REMOTE_LOG_DIR="/var/log/rawwise"
+
+# Spark
+# SPARK_MASTER="local[*]"
+# SPARK_DRIVER_MEMORY="4g"
+# SPARK_DRIVER_HOST=""
+
+# Backend 高可用
+# HA_ENABLED=false
+# HA_OWNER_ID=""
+# HA_ADVERTISE_ADDRESS=""
+# HA_LEASE_TTL_MS=10000
+# HA_RENEW_INTERVAL_MS=3000

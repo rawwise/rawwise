@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<allocations>
+  <pool name="INTERACTIVE_QUERY">
+    <schedulingMode>FAIR</schedulingMode>
+    <weight>2</weight>
+    <minShare>2</minShare>
+  </pool>
+  <pool name="BATCH_INGESTION">
+    <schedulingMode>FAIR</schedulingMode>
+    <weight>1</weight>
+    <minShare>1</minShare>
+  </pool>
+  <pool name="TRAINING_SCAN">
+    <schedulingMode>FAIR</schedulingMode>
+    <weight>3</weight>
+    <minShare>3</minShare>
+  </pool>
+  <pool name="INFERENCE_REQUEST">
+    <schedulingMode>FAIR</schedulingMode>
+    <weight>5</weight>
+    <minShare>5</minShare>
+  </pool>
+</allocations>

@@ -1,0 +1,118 @@
+syntax = "proto3";
+
+package rawwise.axiom;
+
+option java_multiple_files = true;
+option java_package = "io.github.rawwise.proto.axiom";
+
+service AxiomService {
+  rpc Ingest(AxiomIngestRequest) returns (AxiomIngestResponse);
+  rpc Search(AxiomSearchRequest) returns (AxiomSearchResponse);
+  rpc Annotate(AxiomAnnotateRequest) returns (AxiomAnnotateResponse);
+  rpc GetProvenance(AxiomProvenanceRequest) returns (AxiomProvenanceResponse);
+  rpc RecordImplicitFeedback(ImplicitFeedbackRequest) returns (ImplicitFeedbackResponse);
+  rpc Rederive(AxiomRederiveRequest) returns (AxiomRederiveResponse);
+}
+
+message AxiomIngestRequest {
+  string table_id = 1;
+  string key = 2;
+  bytes body = 3;
+  bool immutable = 4;
+  map<string, string> properties = 5;
+  optional bytes embedding = 6;
+}
+
+message AxiomIngestResponse {
+  string record_key = 1;
+  int32 chunk_count = 2;
+  string status = 3;
+}
+
+message AxiomSearchRequest {
+  string table_id = 1;
+  string query = 2;
+  int32 top_k = 3;
+  int64 snapshot_id = 4;
+  map<string, string> filter = 5;  // 属性过滤：key=properties 键（如 agent_id/memory_tier），value=精确匹配值；空 map 不过滤
+}
+
+message AxiomSearchResponse {
+  repeated SearchResultItem results = 1;
+}
+
+message SearchResultItem {
+  string view_id = 1;
+  float score = 2;
+  string summary = 3;
+  ProvenanceChain provenance = 4;
+  map<string, string> properties = 5;  // 记录 properties（含 agent_id/memory_tier/importance）
+  string raw_text = 6;                 // Raw 原文（depth=DETAIL 时返回，可为空）
+}
+
+message ProvenanceChain {
+  string raw_key = 1;
+  repeated DerivationLink chain = 2;
+}
+
+message DerivationLink {
+  string from = 1;
+  string from_layer = 2;
+  string to = 3;
+  string to_layer = 4;
+}
+
+message AxiomAnnotateRequest {
+  string view_id = 1;
+  string type = 2;
+  string value = 3;
+  string annotator_id = 4;
+  double confidence = 5;
+}
+
+message AxiomAnnotateResponse {
+  bool success = 1;
+  double adjusted_score = 2;
+}
+
+message AxiomProvenanceRequest {
+  string view_id = 1;
+}
+
+message AxiomProvenanceResponse {
+  string view_id = 1;
+  string raw_key = 2;
+  repeated DerivationLink full_chain = 3;
+}
+
+message ImplicitFeedbackRequest {
+  string view_id = 1;
+  string signal_type = 2;
+  int64 dwell_ms = 3;
+}
+
+message ImplicitFeedbackResponse {
+  bool accepted = 1;
+}
+
+enum RederiveScope {
+  FULL_TABLE = 0;
+  KEY_RANGE = 1;
+  SINGLE_KEY = 2;
+}
+
+message AxiomRederiveRequest {
+  string table_id = 1;
+  RederiveScope scope = 2;
+  string start_key = 3;
+  string end_key = 4;
+  string single_key = 5;
+  bool force_reindex = 6;
+}
+
+message AxiomRederiveResponse {
+  int32 total_keys = 1;
+  int32 rederived_count = 2;
+  int32 failed_count = 3;
+  string status = 4;
+}

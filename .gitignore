@@ -1,0 +1,160 @@
+# ============================================================
+# 白名单模式：默认忽略全部，仅保留开源项目所需内容
+# 规则按顺序生效，后面的通用排除项优先级更高
+# ============================================================
+
+# ---------- 1. 默认忽略一切 ----------
+*
+
+# ---------- 2. 允许 Git 递归进入目录 ----------
+!*/
+
+# ---------- 3. 保留开源必备文件 ----------
+!.gitignore
+!.gitattributes
+!README*
+!COPYRIGHT*
+!CLA*
+!NOTICE*
+!CHANGELOG*
+!CONTRIBUTING*
+!CODE_OF_CONDUCT*
+!SECURITY*
+!pom.xml
+!.env.example
+!.editorconfig
+!mvnw
+!mvnw.cmd
+!.mvn/**
+!.github/**
+
+# ---------- 4. 保留源码目录 ----------
+!rawwise-core/**
+!rawwise-benchmark/**
+!rawwise-skills/**
+
+# ---------- 5. 显式排除目录（覆盖上面的 README 放行规则） ----------
+/benchmark/
+
+# 生产部署与生命周期脚本（README 快速开始依赖）；本地测试、benchmark、集群节点配置不公开
+!bin/common.sh
+!bin/rawwise.sh
+!bin/rawwise-start.sh
+!bin/rawwise-stop.sh
+!bin/rawwise-restart.sh
+!bin/rawwise-status.sh
+!bin/rawwise-clean.sh
+!bin/rawwise-package.sh
+!bin/package.sh
+!bin/deploy.sh
+!deploy/deploy.conf.example
+!bin/deploy/cluster-start.sh
+!bin/deploy/cluster-stop.sh
+!bin/deploy/cluster-status.sh
+!bin/deploy/standalone-cluster.sh
+!bin/deploy/nodes.conf.example
+!bin/deploy/standalone-cluster.conf.example
+
+# ============================================================
+# 通用排除项（覆盖上面的白名单，确保构建产物与敏感文件不被提交）
+# ============================================================
+
+# ---------- 操作系统 ----------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ---------- IDE / 编辑器 ----------
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+.factorypath
+
+# ---------- Java / Maven / Gradle ----------
+target/
+build/
+out/
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+*.war
+*.ear
+*.nar
+*.log
+hs_err_pid*
+replay_pid*
+.gradle/
+gradle-app.setting
+.mvn/timing.properties
+
+# ---------- Python ----------
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+.eggs/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# ---------- Node / 前端 ----------
+node_modules/
+dist/
+.npm/
+.pnpm-store/
+*.tsbuildinfo
+
+# ---------- 日志 / 临时文件 ----------
+/logs/
+*.log.*
+*.tmp
+*.temp
+*.bak
+*.orig
+*.rej
+*.pid
+*.seed
+*.swp
+
+# ---------- 敏感信息 / 本地配置 ----------
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+id_rsa*
+credentials*
+secrets*
+
+# ---------- 本地数据 / 缓存目录（仅根目录） ----------
+/data/
+/cache/
+/tmp/
+/temp/
+/run/
+
+# ---------- VBench 产物 ----------
+rawwise-benchmark/benchmark/vbench/videos/
+rawwise-benchmark/benchmark/vbench/eval_results/
+
+# ---------- 保留配置模板（放在最后，覆盖 .env.* 规则） ----------
+!.env.example

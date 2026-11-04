@@ -1,0 +1,64 @@
+# RawWise Cluster Node Configuration
+# Copy this file to nodes.conf and customize for your environment.
+#
+# === Backend Group Concept ===
+# A "Backend Group" consists of:
+#   1 Backend Server (gRPC endpoint, Spark Driver) + N Executors = 1 Spark Application
+#   The Backend Server hosts the Spark Driver in-process (client deploy mode).
+#   Executors are allocated by the Spark Master (Standalone/YARN/K8s).
+#   Multiple Backend Groups can be deployed for HA, each with its own Backend Server.
+#
+# === Node Assignment ===
+# Each logical role can run on the same or different physical hosts.
+# For production, spread roles across dedicated nodes.
+# For testing, all roles can share a single host.
+
+# Frontend HTTP servers (space-separated hostnames or IPs)
+# Each frontend connects to the Backend Server via gRPC.
+FRONTEND_NODES="node1.example.com node2.example.com"
+
+# Backend Server node (Spark Driver host)
+# This is where the Backend gRPC server + Spark Driver runs.
+BACKEND_SERVER_NODE="node3.example.com"
+
+# Number of Spark Executors to allocate per Backend Group
+# Total executor count distributed across all worker nodes.
+# For local mode, this sets Spark local[N] thread count.
+BACKEND_EXECUTOR_COUNT=4
+
+# Metastore node (standalone gRPC metastore server)
+# If empty, the Backend Server runs an embedded metastore instead.
+METASTORE_NODE="node4.example.com"
+
+# Spark master URL. Supports:
+#   local[N]            - Local mode with N threads (single-machine)
+#   spark://host:7077   - Spark Standalone cluster
+#   yarn                - YARN cluster (client deploy mode)
+#   k8s://https://...   - Kubernetes cluster
+SPARK_MASTER_URL="local[4]"
+
+# Port configuration
+FRONTEND_PORT=8080
+BACKEND_PORT=9090
+METASTORE_PORT=9091
+
+# === Multi Backend Group (for distributed YCSB) ===
+# Comma-separated list of backend groups: groupId:host:port,groupId2:host2:port2,...
+# When set, Frontend creates a MultiBackendClient with routing table support.
+# Leave empty for single-backend mode.
+# Example: BACKEND_GROUPS="group-1:node3:9090,group-2:node4:9091"
+# This is passed to Frontend as: -Drawwise.frontend.grpc.backend.groups="group-1:node3:9090,..."
+BACKEND_GROUPS=""
+
+# SSH configuration for remote deployment
+# SSH_USER is the user to SSH as on all target nodes.
+# SSH_KEY is the identity file path (optional, defaults to ~/.ssh/id_rsa).
+SSH_USER="deploy"
+SSH_KEY=""
+
+# Deployment path on each remote node
+# Must contain the rawwise project with bin/ scripts.
+DEPLOY_PATH="/opt/rawwise"
+
+# Health check timeout (seconds)
+HEALTH_TIMEOUT=120

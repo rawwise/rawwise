@@ -1,0 +1,38 @@
+# Prometheus 抓取配置示例
+# 保存为 prometheus.yml
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: 'rawwise-monitor'
+
+scrape_configs:
+  # RawWise Driver Metrics
+  - job_name: 'rawwise-driver'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['driver-host:9190']
+        labels:
+          role: 'driver'
+
+  # RawWise Executor Metrics (使用服务发现)
+  - job_name: 'rawwise-executor'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets:
+          - 'executor-1:9190'
+          - 'executor-2:9190'
+          - 'executor-3:9190'
+        labels:
+          role: 'executor'
+
+# 告警规则配置
+rule_files:
+  # - "rawwise_alerts.yml"
+
+# Alertmanager 配置
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets: ['alertmanager:9093']

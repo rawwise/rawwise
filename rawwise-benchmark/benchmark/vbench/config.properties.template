@@ -1,0 +1,28 @@
+# =============================================================
+# RawWise VBench 配置模板
+#
+# 用法:
+#   cp rawwise-benchmark/benchmark/vbench/config.properties.template \
+#      ~/.rawwise/vbench/config.properties
+#   然后填入真实 API key（不要提交到版本库）
+#
+# 所有 key 都可用环境变量覆盖: RAWWISE_VBENCH_<KEY>
+# （点替换为下划线并大写，例如 provider.api.key -> RAWWISE_VBENCH_PROVIDER_API_KEY）
+# =============================================================
+
+# 视频生成 provider: cogvideox-api | kling | vidu | wan
+provider=cogvideox-api
+provider.api.endpoint=https://open.bigmodel.cn/api/paas/v4/videos/generations
+# 仅本地填写真实 key，留空则回退到 stub
+provider.api.key=
+provider.api.model=cogvideox-2
+provider.timeout.seconds=300
+
+# 产物目录（已被 .gitignore 忽略）
+videos.output.dir=benchmark/vbench/videos
+eval.results.dir=benchmark/vbench/eval_results
+
+# VBench 评测环境
+eval.python.path=rawwise-benchmark/benchmark/vbench/.venv/bin/python
+eval.script.path=rawwise-benchmark/benchmark/vbench/clip_score_eval.py
+eval.hf.endpoint=https://hf-mirror.com
